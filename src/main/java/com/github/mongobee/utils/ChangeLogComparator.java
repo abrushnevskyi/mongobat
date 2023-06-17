@@ -5,7 +5,7 @@ import com.github.mongobee.changeset.ChangeLog;
 import java.io.Serializable;
 import java.util.Comparator;
 
-import static org.springframework.util.StringUtils.hasText;
+import static com.github.mongobee.utils.StringUtils.hasText;
 
 /**
  * Sort ChangeLogs by 'order' value or class name (if no 'order' is set)

@@ -1,6 +1,6 @@
 package com.github.mongobee.dao;
 
-import static org.springframework.util.StringUtils.hasText;
+import static com.github.mongobee.utils.StringUtils.hasText;
 
 import java.util.Date;
 
@@ -77,7 +77,7 @@ public class ChangeEntryDao {
   }
 
   public MongoDatabase connectMongoDb(MongoClientURI mongoClientURI, String dbName)
-      throws MongobeeConfigurationException, MongobeeConnectionException {
+      throws MongobeeConfigurationException {
 
     final MongoClient mongoClient = new MongoClient(mongoClientURI);
     final String database = (!hasText(dbName)) ? mongoClientURI.getDatabase() : dbName;

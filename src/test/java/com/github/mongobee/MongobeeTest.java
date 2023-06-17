@@ -18,10 +18,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.mongodb.core.MongoTemplate;
-
-import java.net.UnknownHostException;
-import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -81,7 +77,7 @@ public class MongobeeTest {
     runner.execute();
 
     // then
-    verify(dao, times(10)).save(any(ChangeEntry.class)); // 10 changesets saved to dbchangelog
+    verify(dao, times(8)).save(any(ChangeEntry.class)); // 8 changesets saved to dbchangelog
 
     // dbchangelog collection checking
     long change1 = fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME).count(new Document()
@@ -103,7 +99,7 @@ public class MongobeeTest {
 
     long changeAll = fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME).count(new Document()
         .append(ChangeEntry.KEY_AUTHOR, "testuser"));
-    assertEquals(9, changeAll);
+    assertEquals(8, changeAll);
   }
 
   @Test
@@ -116,17 +112,6 @@ public class MongobeeTest {
 
     // then
     verify(dao, times(0)).save(any(ChangeEntry.class)); // no changesets saved to dbchangelog
-  }
-
-  @Test
-  public void shouldUsePreConfiguredMongoTemplate() throws Exception {
-    MongoTemplate mt = mock(MongoTemplate.class);
-    when(mt.getCollectionNames()).thenReturn(Collections.emptySet());
-    when(dao.acquireProcessLock()).thenReturn(true);
-    when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(true);
-    runner.setMongoTemplate(mt);
-    runner.afterPropertiesSet();
-    verify(mt).getCollectionNames();
   }
 
   @Test
@@ -199,7 +184,6 @@ public class MongobeeTest {
 
   @AfterEach
   public void cleanUp() {
-    runner.setMongoTemplate(null);
     fakeDb.dropDatabase();
   }
 

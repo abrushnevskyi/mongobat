@@ -2,7 +2,7 @@ package com.github.mongobee;
 
 import static com.mongodb.ServerAddress.defaultHost;
 import static com.mongodb.ServerAddress.defaultPort;
-import static org.springframework.util.StringUtils.hasText;
+import static com.github.mongobee.utils.StringUtils.hasText;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -10,9 +10,6 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.InitializingBean;
-import org.springframework.core.env.Environment;
-import org.springframework.data.mongodb.core.MongoTemplate;
 
 import com.github.mongobee.changeset.ChangeEntry;
 import com.github.mongobee.dao.ChangeEntryDao;
@@ -32,7 +29,7 @@ import com.mongodb.client.MongoDatabase;
  * @author lstolowski
  * @since 26/07/2014
  */
-public class Mongobee implements InitializingBean {
+public class Mongobee {
   private static final Logger logger = LoggerFactory.getLogger(Mongobee.class);
 
   private static final String DEFAULT_CHANGELOG_COLLECTION_NAME = "dbchangelog";
@@ -49,10 +46,6 @@ public class Mongobee implements InitializingBean {
   private MongoClientURI mongoClientURI;
   private MongoClient mongoClient;
   private String dbName;
-  private Environment springEnvironment;
-
-  private MongoTemplate mongoTemplate;
-
 
   /**
    * <p>Simple constructor with default configuration of host (localhost) and port (27017). Although
@@ -122,16 +115,6 @@ public class Mongobee implements InitializingBean {
   }
 
   /**
-   * For Spring users: executing mongobee after bean is created in the Spring context
-   *
-   * @throws Exception exception
-   */
-  @Override
-  public void afterPropertiesSet() throws Exception {
-    execute();
-  }
-
-  /**
    * Executing migration
    *
    * @throws MongobeeException exception
@@ -169,7 +152,7 @@ public class Mongobee implements InitializingBean {
 
   private void executeMigration() throws MongobeeException {
 
-    ChangeService service = new ChangeService(changeLogsScanPackage, springEnvironment);
+    ChangeService service = new ChangeService(changeLogsScanPackage);
 
     for (Class<?> changelogClass : service.fetchChangeLogs()) {
 
@@ -213,17 +196,6 @@ public class Mongobee implements InitializingBean {
       logger.debug("method with DB argument");
 
       return changeSetMethod.invoke(changeLogInstance, db);
-    } else if (changeSetMethod.getParameterTypes().length == 1
-        && changeSetMethod.getParameterTypes()[0].equals(MongoTemplate.class)) {
-      logger.debug("method with MongoTemplate argument");
-
-      return changeSetMethod.invoke(changeLogInstance, mongoTemplate != null ? mongoTemplate : new MongoTemplate(db.getMongo(), dbName));
-    } else if (changeSetMethod.getParameterTypes().length == 2
-        && changeSetMethod.getParameterTypes()[0].equals(MongoTemplate.class)
-        && changeSetMethod.getParameterTypes()[1].equals(Environment.class)) {
-      logger.debug("method with MongoTemplate and environment arguments");
-
-      return changeSetMethod.invoke(changeLogInstance, mongoTemplate != null ? mongoTemplate : new MongoTemplate(db.getMongo(), dbName), springEnvironment);
     } else if (changeSetMethod.getParameterTypes().length == 1
         && changeSetMethod.getParameterTypes()[0].equals(MongoDatabase.class)) {
       logger.debug("method with DB argument");
@@ -348,28 +320,6 @@ public class Mongobee implements InitializingBean {
    */
   public Mongobee setThrowExceptionIfCannotObtainLock(boolean throwExceptionIfCannotObtainLock) {
     this.dao.setThrowExceptionIfCannotObtainLock(throwExceptionIfCannotObtainLock);
-    return this;
-  }
-
-  /**
-   * Set Environment object for Spring Profiles (@Profile) integration
-   *
-   * @param environment org.springframework.core.env.Environment object to inject
-   * @return Mongobee object for fluent interface
-   */
-  public Mongobee setSpringEnvironment(Environment environment) {
-    this.springEnvironment = environment;
-    return this;
-  }
-
-  /**
-   * Sets pre-configured {@link MongoTemplate} instance to use by the Mongobee
-   *
-   * @param mongoTemplate instance of the {@link MongoTemplate}
-   * @return Mongobee object for fluent interface
-   */
-  public Mongobee setMongoTemplate(MongoTemplate mongoTemplate) {
-    this.mongoTemplate = mongoTemplate;
     return this;
   }
 
