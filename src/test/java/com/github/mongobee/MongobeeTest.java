@@ -6,7 +6,7 @@ import com.github.mongobee.dao.ChangeEntryIndexDao;
 import com.github.mongobee.exception.MongobeeConfigurationException;
 import com.github.mongobee.exception.MongobeeException;
 import com.github.mongobee.test.changelogs.MongobeeTestResource;
-import com.mongodb.MongoClientURI;
+import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import org.bson.Document;
@@ -26,8 +26,6 @@ import static org.mockito.Mockito.*;
 public class MongobeeTest {
 
   private static final String CHANGELOG_COLLECTION_NAME = "dbchangelog";
-  @InjectMocks
-  private Mongobee runner = new Mongobee();
 
   @Mock
   private ChangeEntryDao dao;
@@ -37,12 +35,19 @@ public class MongobeeTest {
 
   @Mock
   private MongoDatabase fakeMongoDatabase;
+
   @Mock
   private MongoCollection<Document> mongoCollection;
 
+  @Mock
+  private MongoClient mongoClient;
+
+  @InjectMocks
+  private Mongobee runner = new Mongobee(mongoClient);
+
   @BeforeEach
   public void init() throws MongobeeException {
-    lenient().when(dao.connectMongoDb(any(MongoClientURI.class), anyString()))
+    lenient().when(dao.connectMongoDb(any(MongoClient.class), anyString()))
         .thenReturn(fakeMongoDatabase);
     lenient().when(dao.getMongoDatabase()).thenReturn(fakeMongoDatabase);
     lenient().doCallRealMethod().when(dao).save(any(ChangeEntry.class));
@@ -58,7 +63,7 @@ public class MongobeeTest {
 
   @Test
   public void shouldThrowAnExceptionIfNoDbNameSet() {
-    Mongobee runner = new Mongobee(new MongoClientURI("mongodb://localhost:27017/"));
+    runner.setDbName(null);
     runner.setEnabled(true);
     runner.setChangeLogsScanPackage(MongobeeTestResource.class.getPackage().getName());
     assertThrows(MongobeeConfigurationException.class, runner::execute);

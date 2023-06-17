@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import com.github.mongobee.exception.MongobeeConfigurationException;
 import com.github.mongobee.exception.MongobeeLockException;
-import com.mongodb.MongoClient;
+import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoDatabase;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;

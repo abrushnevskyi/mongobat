@@ -12,8 +12,7 @@ import com.github.mongobee.changeset.ChangeEntry;
 import com.github.mongobee.exception.MongobeeConfigurationException;
 import com.github.mongobee.exception.MongobeeConnectionException;
 import com.github.mongobee.exception.MongobeeLockException;
-import com.mongodb.MongoClient;
-import com.mongodb.MongoClientURI;
+import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 
@@ -63,14 +62,6 @@ public class ChangeEntryDao {
       initializeLock();
       return mongoDatabase;
     }
-  }
-
-  public MongoDatabase connectMongoDb(MongoClientURI mongoClientURI, String dbName)
-      throws MongobeeConfigurationException {
-
-    final MongoClient mongoClient = new MongoClient(mongoClientURI);
-    final String database = (!hasText(dbName)) ? mongoClientURI.getDatabase() : dbName;
-    return this.connectMongoDb(mongoClient, database);
   }
 
   /**

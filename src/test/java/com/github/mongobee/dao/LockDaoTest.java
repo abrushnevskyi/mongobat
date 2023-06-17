@@ -60,7 +60,7 @@ public class LockDaoTest {
     // given
     WriteError writeError = new WriteError(1, "ERROR", new BsonDocument());
     MongoWriteException exception = new MongoWriteException(writeError, new ServerAddress());
-    doNothing().doThrow(exception).when(lockCollection).insertOne(any(Document.class));
+    doReturn(null).doThrow(exception).when(lockCollection).insertOne(any(Document.class));
 
     LockDao dao = new LockDao(LOCK_COLLECTION_NAME);
     dao.intitializeLock(db);
