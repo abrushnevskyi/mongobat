@@ -29,7 +29,7 @@ public class MongobeeTestResource {
   @ChangeSet(author = "testuser", id = "test3", order = "03")
   public void testChangeSet3(DB db) {
 
-    System.out.println("invoked 3 with db=" + db.toString());
+    System.out.println("invoked 3 with db=" + db);
 
   }
 

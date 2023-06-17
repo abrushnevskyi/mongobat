@@ -23,7 +23,7 @@ public class AnotherMongobeeTestResource {
 
   @ChangeSet(author = "testuser", id = "Btest3", order = "03")
   public void testChangeSet3(DB db){
-    System.out.println("invoked B3 with db=" + db.toString());
+    System.out.println("invoked B3 with db=" + db);
   }
 
   @ChangeSet(author = "testuser", id = "Btest6", order = "06")

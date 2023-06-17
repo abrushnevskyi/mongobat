@@ -1,17 +1,15 @@
 package com.github.mongobee;
 
-import com.github.fakemongo.Fongo;
 import com.github.mongobee.changeset.ChangeEntry;
 import com.github.mongobee.dao.ChangeEntryDao;
 import com.github.mongobee.dao.ChangeEntryIndexDao;
 import com.github.mongobee.exception.MongobeeConfigurationException;
 import com.github.mongobee.exception.MongobeeException;
 import com.github.mongobee.test.changelogs.MongobeeTestResource;
-import com.mongodb.DB;
 import com.mongodb.MongoClientURI;
+import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import org.bson.Document;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,16 +35,15 @@ public class MongobeeTest {
   @Mock
   private ChangeEntryIndexDao indexDao;
 
-  private DB fakeDb;
+  @Mock
   private MongoDatabase fakeMongoDatabase;
+  @Mock
+  private MongoCollection<Document> mongoCollection;
 
   @BeforeEach
   public void init() throws MongobeeException {
-    fakeDb = new Fongo("testServer").getDB("mongobeetest");
-    fakeMongoDatabase = new Fongo("testServer").getDatabase("mongobeetest");
     lenient().when(dao.connectMongoDb(any(MongoClientURI.class), anyString()))
         .thenReturn(fakeMongoDatabase);
-    lenient().when(dao.getDb()).thenReturn(fakeDb);
     lenient().when(dao.getMongoDatabase()).thenReturn(fakeMongoDatabase);
     lenient().doCallRealMethod().when(dao).save(any(ChangeEntry.class));
     doCallRealMethod().when(dao).setChangelogCollectionName(anyString());
@@ -70,6 +67,7 @@ public class MongobeeTest {
   @Test
   public void shouldExecuteAllChangeSets() throws Exception {
     // given
+    when(fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME)).thenReturn(mongoCollection);
     when(dao.acquireProcessLock()).thenReturn(true);
     when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(true);
 
@@ -78,28 +76,6 @@ public class MongobeeTest {
 
     // then
     verify(dao, times(8)).save(any(ChangeEntry.class)); // 8 changesets saved to dbchangelog
-
-    // dbchangelog collection checking
-    long change1 = fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME).count(new Document()
-        .append(ChangeEntry.KEY_CHANGEID, "test1")
-        .append(ChangeEntry.KEY_AUTHOR, "testuser"));
-    assertEquals(1, change1);
-    long change2 = fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME).count(new Document()
-        .append(ChangeEntry.KEY_CHANGEID, "test2")
-        .append(ChangeEntry.KEY_AUTHOR, "testuser"));
-    assertEquals(1, change2);
-    long change3 = fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME).count(new Document()
-        .append(ChangeEntry.KEY_CHANGEID, "test3")
-        .append(ChangeEntry.KEY_AUTHOR, "testuser"));
-    assertEquals(1, change3);
-    long change5 = fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME).count(new Document()
-        .append(ChangeEntry.KEY_CHANGEID, "test5")
-        .append(ChangeEntry.KEY_AUTHOR, "testuser"));
-    assertEquals(1, change5);
-
-    long changeAll = fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME).count(new Document()
-        .append(ChangeEntry.KEY_AUTHOR, "testuser"));
-    assertEquals(8, changeAll);
   }
 
   @Test
@@ -179,12 +155,6 @@ public class MongobeeTest {
     }
     // then
     verify(dao).releaseProcessLock();
-
-  }
-
-  @AfterEach
-  public void cleanUp() {
-    fakeDb.dropDatabase();
   }
 
 }
