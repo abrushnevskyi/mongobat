@@ -2,7 +2,6 @@ package com.github.mongobee.test.changelogs;
 
 import com.github.mongobee.changeset.ChangeLog;
 import com.github.mongobee.changeset.ChangeSet;
-import org.jongo.Jongo;
 import org.springframework.data.mongodb.core.MongoTemplate;
 
 /**

@@ -8,7 +8,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
 
-import org.jongo.Jongo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.InitializingBean;
@@ -53,7 +52,6 @@ public class Mongobee implements InitializingBean {
   private Environment springEnvironment;
 
   private MongoTemplate mongoTemplate;
-  private Jongo jongo;
 
 
   /**
@@ -169,13 +167,13 @@ public class Mongobee implements InitializingBean {
     logger.info("Mongobee has finished his job.");
   }
 
-  private void executeMigration() throws MongobeeConnectionException, MongobeeException {
+  private void executeMigration() throws MongobeeException {
 
     ChangeService service = new ChangeService(changeLogsScanPackage, springEnvironment);
 
     for (Class<?> changelogClass : service.fetchChangeLogs()) {
 
-      Object changelogInstance = null;
+      Object changelogInstance;
       try {
         changelogInstance = changelogClass.getConstructor().newInstance();
         List<Method> changesetMethods = service.fetchChangeSets(changelogInstance.getClass());
@@ -198,15 +196,11 @@ public class Mongobee implements InitializingBean {
             logger.error(e.getMessage());
           }
         }
-      } catch (NoSuchMethodException e) {
-        throw new MongobeeException(e.getMessage(), e);
-      } catch (IllegalAccessException e) {
+      } catch (NoSuchMethodException | IllegalAccessException | InstantiationException e) {
         throw new MongobeeException(e.getMessage(), e);
       } catch (InvocationTargetException e) {
         Throwable targetException = e.getTargetException();
         throw new MongobeeException(targetException.getMessage(), e);
-      } catch (InstantiationException e) {
-        throw new MongobeeException(e.getMessage(), e);
       }
 
     }
@@ -219,11 +213,6 @@ public class Mongobee implements InitializingBean {
       logger.debug("method with DB argument");
 
       return changeSetMethod.invoke(changeLogInstance, db);
-    } else if (changeSetMethod.getParameterTypes().length == 1
-        && changeSetMethod.getParameterTypes()[0].equals(Jongo.class)) {
-      logger.debug("method with Jongo argument");
-
-      return changeSetMethod.invoke(changeLogInstance, jongo != null ? jongo : new Jongo(db));
     } else if (changeSetMethod.getParameterTypes().length == 1
         && changeSetMethod.getParameterTypes()[0].equals(MongoTemplate.class)) {
       logger.debug("method with MongoTemplate argument");
@@ -385,19 +374,8 @@ public class Mongobee implements InitializingBean {
   }
 
   /**
-   * Sets pre-configured {@link MongoTemplate} instance to use by the Mongobee
-   *
-   * @param jongo {@link Jongo} instance
-   * @return Mongobee object for fluent interface
-   */
-  public Mongobee setJongo(Jongo jongo) {
-    this.jongo = jongo;
-    return this;
-  }
-
-  /**
    * Overwrites a default mongobee changelog collection hardcoded in DEFAULT_CHANGELOG_COLLECTION_NAME.
-   *
+   * <p>
    * CAUTION! Use this method carefully - when changing the name on a existing system,
    * your changelogs will be executed again on your MongoDB instance
    *

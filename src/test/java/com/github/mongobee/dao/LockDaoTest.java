@@ -1,12 +1,11 @@
 package com.github.mongobee.dao;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import com.github.fakemongo.Fongo;
-import com.mongodb.DB;
 import com.mongodb.client.MongoDatabase;
 
 /**
@@ -20,7 +19,7 @@ public class LockDaoTest {
   private static final String LOCK_COLLECTION_NAME = "mongobeelock";
 
   @Test
-  public void shouldGetLockWhenNotPreviouslyHeld() throws Exception {
+  public void shouldGetLockWhenNotPreviouslyHeld() {
 
     // given
     MongoDatabase db = new Fongo(TEST_SERVER).getDatabase(DB_NAME);
@@ -36,7 +35,7 @@ public class LockDaoTest {
   }
 
   @Test
-  public void shouldNotGetLockWhenPreviouslyHeld() throws Exception {
+  public void shouldNotGetLockWhenPreviouslyHeld() {
 
     // given
     MongoDatabase db = new Fongo(TEST_SERVER).getDatabase(DB_NAME);
@@ -52,7 +51,7 @@ public class LockDaoTest {
   }
 
   @Test
-  public void shouldGetLockWhenPreviouslyHeldAndReleased() throws Exception {
+  public void shouldGetLockWhenPreviouslyHeldAndReleased() {
 
     // given
     MongoDatabase db = new Fongo(TEST_SERVER).getDatabase(DB_NAME);

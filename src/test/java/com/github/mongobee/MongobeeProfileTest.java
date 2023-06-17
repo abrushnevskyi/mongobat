@@ -12,19 +12,18 @@ import com.mongodb.DB;
 import com.mongodb.MongoClientURI;
 import com.mongodb.client.MongoDatabase;
 import org.bson.Document;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-import static org.junit.Assert.assertEquals;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
 
 /**
  * Tests for Spring profiles integration
@@ -32,17 +31,17 @@ import static org.mockito.Mockito.when;
  * @author lstolowski
  * @since 2014-09-17
  */
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 public class MongobeeProfileTest {
   private static final String CHANGELOG_COLLECTION_NAME = "dbchangelog";
-  public static final int CHANGELOG_COUNT = 13;
+  public static final int CHANGELOG_COUNT = 10;
 
   @InjectMocks
   private Mongobee runner = new Mongobee();
 
   @Mock
   private ChangeEntryDao dao;
-  
+
   @Mock
   private ChangeEntryIndexDao indexDao;
 
@@ -50,18 +49,18 @@ public class MongobeeProfileTest {
 
   private MongoDatabase fakeMongoDatabase;
 
-  @Before
+  @BeforeEach
   public void init() throws Exception {
     fakeDb = new Fongo("testServer").getDB("mongobeetest");
     fakeMongoDatabase = new Fongo("testServer").getDatabase("mongobeetest");
 
     when(dao.connectMongoDb(any(MongoClientURI.class), anyString()))
         .thenReturn(fakeMongoDatabase);
-    when(dao.getDb()).thenReturn(fakeDb);
-    when(dao.getMongoDatabase()).thenReturn(fakeMongoDatabase);
-    when(dao.acquireProcessLock()).thenReturn(true);
-    doCallRealMethod().when(dao).save(any(ChangeEntry.class));
-    doCallRealMethod().when(dao).setChangelogCollectionName(anyString());
+    lenient().when(dao.getDb()).thenReturn(fakeDb);
+    lenient().when(dao.getMongoDatabase()).thenReturn(fakeMongoDatabase);
+    lenient().when(dao.acquireProcessLock()).thenReturn(true);
+    lenient().doCallRealMethod().when(dao).save(any(ChangeEntry.class));
+    lenient().doCallRealMethod().when(dao).setChangelogCollectionName(anyString());
     doCallRealMethod().when(dao).setIndexDao(any(ChangeEntryIndexDao.class));
     dao.setIndexDao(indexDao);
     dao.setChangelogCollectionName(CHANGELOG_COLLECTION_NAME);
@@ -147,7 +146,7 @@ public class MongobeeProfileTest {
     // given
     runner.setSpringEnvironment(new EnvironmentMock("foobar"));
     runner.setChangeLogsScanPackage(ProfiledDevChangeLog.class.getPackage().getName());
-    when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(true);
+    lenient().when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(true);
 
     // when
     runner.execute();
@@ -202,10 +201,9 @@ public class MongobeeProfileTest {
     assertEquals(CHANGELOG_COUNT, changes);
   }
 
-  @After
+  @AfterEach
   public void cleanUp() {
     runner.setMongoTemplate(null);
-    runner.setJongo(null);
     fakeDb.dropDatabase();
   }
 

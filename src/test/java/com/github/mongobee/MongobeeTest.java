@@ -11,26 +11,24 @@ import com.mongodb.DB;
 import com.mongodb.MongoClientURI;
 import com.mongodb.client.MongoDatabase;
 import org.bson.Document;
-import org.jongo.Jongo;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
 
 import java.net.UnknownHostException;
 import java.util.Collections;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 public class MongobeeTest {
 
   private static final String CHANGELOG_COLLECTION_NAME = "dbchangelog";
@@ -46,15 +44,15 @@ public class MongobeeTest {
   private DB fakeDb;
   private MongoDatabase fakeMongoDatabase;
 
-  @Before
-  public void init() throws MongobeeException, UnknownHostException {
+  @BeforeEach
+  public void init() throws MongobeeException {
     fakeDb = new Fongo("testServer").getDB("mongobeetest");
     fakeMongoDatabase = new Fongo("testServer").getDatabase("mongobeetest");
-    when(dao.connectMongoDb(any(MongoClientURI.class), anyString()))
+    lenient().when(dao.connectMongoDb(any(MongoClientURI.class), anyString()))
         .thenReturn(fakeMongoDatabase);
-    when(dao.getDb()).thenReturn(fakeDb);
-    when(dao.getMongoDatabase()).thenReturn(fakeMongoDatabase);
-    doCallRealMethod().when(dao).save(any(ChangeEntry.class));
+    lenient().when(dao.getDb()).thenReturn(fakeDb);
+    lenient().when(dao.getMongoDatabase()).thenReturn(fakeMongoDatabase);
+    lenient().doCallRealMethod().when(dao).save(any(ChangeEntry.class));
     doCallRealMethod().when(dao).setChangelogCollectionName(anyString());
     doCallRealMethod().when(dao).setIndexDao(any(ChangeEntryIndexDao.class));
     dao.setIndexDao(indexDao);
@@ -65,12 +63,12 @@ public class MongobeeTest {
     runner.setChangeLogsScanPackage(MongobeeTestResource.class.getPackage().getName());
   }
 
-  @Test(expected = MongobeeConfigurationException.class)
-  public void shouldThrowAnExceptionIfNoDbNameSet() throws Exception {
+  @Test
+  public void shouldThrowAnExceptionIfNoDbNameSet() {
     Mongobee runner = new Mongobee(new MongoClientURI("mongodb://localhost:27017/"));
     runner.setEnabled(true);
     runner.setChangeLogsScanPackage(MongobeeTestResource.class.getPackage().getName());
-    runner.execute();
+    assertThrows(MongobeeConfigurationException.class, runner::execute);
   }
 
   @Test
@@ -83,7 +81,7 @@ public class MongobeeTest {
     runner.execute();
 
     // then
-    verify(dao, times(13)).save(any(ChangeEntry.class)); // 13 changesets saved to dbchangelog
+    verify(dao, times(10)).save(any(ChangeEntry.class)); // 10 changesets saved to dbchangelog
 
     // dbchangelog collection checking
     long change1 = fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME).count(new Document()
@@ -98,10 +96,6 @@ public class MongobeeTest {
         .append(ChangeEntry.KEY_CHANGEID, "test3")
         .append(ChangeEntry.KEY_AUTHOR, "testuser"));
     assertEquals(1, change3);
-    long change4 = fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME).count(new Document()
-        .append(ChangeEntry.KEY_CHANGEID, "test4")
-        .append(ChangeEntry.KEY_AUTHOR, "testuser"));
-    assertEquals(1, change4);
     long change5 = fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME).count(new Document()
         .append(ChangeEntry.KEY_CHANGEID, "test5")
         .append(ChangeEntry.KEY_AUTHOR, "testuser"));
@@ -109,13 +103,13 @@ public class MongobeeTest {
 
     long changeAll = fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME).count(new Document()
         .append(ChangeEntry.KEY_AUTHOR, "testuser"));
-    assertEquals(12, changeAll);
+    assertEquals(9, changeAll);
   }
 
   @Test
   public void shouldPassOverChangeSets() throws Exception {
     // given
-    when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(false);
+    lenient().when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(false);
 
     // when
     runner.execute();
@@ -127,22 +121,12 @@ public class MongobeeTest {
   @Test
   public void shouldUsePreConfiguredMongoTemplate() throws Exception {
     MongoTemplate mt = mock(MongoTemplate.class);
-    when(mt.getCollectionNames()).thenReturn(Collections.EMPTY_SET);
+    when(mt.getCollectionNames()).thenReturn(Collections.emptySet());
     when(dao.acquireProcessLock()).thenReturn(true);
     when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(true);
     runner.setMongoTemplate(mt);
     runner.afterPropertiesSet();
     verify(mt).getCollectionNames();
-  }
-
-  @Test
-  public void shouldUsePreConfiguredJongo() throws Exception {
-    Jongo jongo = mock(Jongo.class);
-    when(dao.acquireProcessLock()).thenReturn(true);
-    when(jongo.getDatabase()).thenReturn(null);
-    runner.setJongo(jongo);
-    runner.afterPropertiesSet();
-    verify(jongo).getDatabase();
   }
 
   @Test
@@ -192,7 +176,6 @@ public class MongobeeTest {
     assertTrue(inProgress);
   }
 
-  @SuppressWarnings("unchecked")
   @Test
   public void shouldReleaseLockWhenExceptionInMigration() throws Exception {
 
@@ -214,10 +197,9 @@ public class MongobeeTest {
 
   }
 
-  @After
+  @AfterEach
   public void cleanUp() {
     runner.setMongoTemplate(null);
-    runner.setJongo(null);
     fakeDb.dropDatabase();
   }
 

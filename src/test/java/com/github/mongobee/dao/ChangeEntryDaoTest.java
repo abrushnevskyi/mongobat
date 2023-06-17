@@ -1,16 +1,15 @@
 package com.github.mongobee.dao;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import org.bson.Document;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import com.github.fakemongo.Fongo;
 import com.github.mongobee.exception.MongobeeConfigurationException;
@@ -178,7 +177,7 @@ public class ChangeEntryDaoTest {
     assertTrue(hasLock);
   }
 
-  @Test(expected = MongobeeLockException.class)
+  @Test
   public void shouldThrowLockExceptionIfThrowExceptionIsTrue() throws Exception {
     // given
     MongoClient mongoClient = mock(MongoClient.class);
@@ -194,11 +193,8 @@ public class ChangeEntryDaoTest {
 
     dao.connectMongoDb(mongoClient, DB_NAME);
 
-    // when
-    boolean hasLock = dao.acquireProcessLock();
-
-    // then
-    assertFalse(hasLock);
+    // when/then
+    assertThrows(MongobeeLockException.class, dao::acquireProcessLock);
   }
 
   @Test

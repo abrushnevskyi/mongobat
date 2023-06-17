@@ -1,20 +1,20 @@
 package com.github.mongobee.dao;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.mongodb.MongoClient;
 import org.bson.Document;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import com.github.fakemongo.Fongo;
 import com.github.mongobee.changeset.ChangeEntry;
-import com.mongodb.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
@@ -48,7 +48,7 @@ public class ChangeEntryIndexDaoTest {
   }
 
   @Test
-  @Ignore("Fongo has not implemented dropIndex for MongoCollection object (issue with mongo driver 3.x)")
+  @Disabled("Fongo has not implemented dropIndex for MongoCollection object (issue with mongo driver 3.x)")
   public void shouldDropWrongIndex() {
     // init
     MongoClient mongo = mock(MongoClient.class);

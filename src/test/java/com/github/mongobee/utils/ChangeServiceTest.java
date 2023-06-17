@@ -2,15 +2,15 @@ package com.github.mongobee.utils;
 
 import com.github.mongobee.changeset.ChangeEntry;
 import com.github.mongobee.exception.MongobeeChangeSetException;
-import com.github.mongobee.test.changelogs.*;
-import junit.framework.Assert;
-import org.junit.Test;
+import com.github.mongobee.test.changelogs.AnotherMongobeeTestResource;
+import com.github.mongobee.test.changelogs.MongobeeTestResource;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
 import java.util.List;
 
-import static junit.framework.Assert.assertFalse;
-import static junit.framework.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author lstolowski
@@ -39,7 +39,7 @@ public class ChangeServiceTest {
     List<Method> foundMethods = service.fetchChangeSets(MongobeeTestResource.class);
     
     // then
-    assertTrue(foundMethods != null && foundMethods.size() == 5);
+    assertTrue(foundMethods != null && foundMethods.size() == 4);
   }
 
   @Test
@@ -52,7 +52,7 @@ public class ChangeServiceTest {
     List<Method> foundMethods = service.fetchChangeSets(AnotherMongobeeTestResource.class);
 
     // then
-    assertTrue(foundMethods != null && foundMethods.size() == 6);
+    assertTrue(foundMethods != null && foundMethods.size() == 4);
   }
 
 
@@ -88,19 +88,19 @@ public class ChangeServiceTest {
       ChangeEntry entry = service.createChangeEntry(foundMethod);
       
       // then
-      Assert.assertEquals("testuser", entry.getAuthor());
-      Assert.assertEquals(MongobeeTestResource.class.getName(), entry.getChangeLogClass());
-      Assert.assertNotNull(entry.getTimestamp());
-      Assert.assertNotNull(entry.getChangeId());
-      Assert.assertNotNull(entry.getChangeSetMethodName());
+      Assertions.assertEquals("testuser", entry.getAuthor());
+      Assertions.assertEquals(MongobeeTestResource.class.getName(), entry.getChangeLogClass());
+      Assertions.assertNotNull(entry.getTimestamp());
+      Assertions.assertNotNull(entry.getChangeId());
+      Assertions.assertNotNull(entry.getChangeSetMethodName());
     }
   }
 
-  @Test(expected = MongobeeChangeSetException.class)
-  public void shouldFailOnDuplicatedChangeSets() throws MongobeeChangeSetException {
+  @Test
+  public void shouldFailOnDuplicatedChangeSets() {
     String scanPackage = ChangeLogWithDuplicate.class.getPackage().getName();
     ChangeService service = new ChangeService(scanPackage);
-    service.fetchChangeSets(ChangeLogWithDuplicate.class);
+    assertThrows(MongobeeChangeSetException.class, () -> service.fetchChangeSets(ChangeLogWithDuplicate.class));
   }
 
 }
