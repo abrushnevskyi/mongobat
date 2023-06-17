@@ -18,7 +18,6 @@ import com.github.mongobee.exception.MongobeeConfigurationException;
 import com.github.mongobee.exception.MongobeeConnectionException;
 import com.github.mongobee.exception.MongobeeException;
 import com.github.mongobee.utils.ChangeService;
-import com.mongodb.DB;
 import com.mongodb.MongoClient;
 import com.mongodb.MongoClientURI;
 import com.mongodb.client.MongoDatabase;
@@ -166,11 +165,11 @@ public class Mongobee {
 
           try {
             if (dao.isNewChange(changeEntry)) {
-              executeChangeSetMethod(changesetMethod, changelogInstance, dao.getDb(), dao.getMongoDatabase());
+              executeChangeSetMethod(changesetMethod, changelogInstance, dao.getMongoDatabase());
               dao.save(changeEntry);
               logger.info(changeEntry + " applied");
             } else if (service.isRunAlwaysChangeSet(changesetMethod)) {
-              executeChangeSetMethod(changesetMethod, changelogInstance, dao.getDb(), dao.getMongoDatabase());
+              executeChangeSetMethod(changesetMethod, changelogInstance, dao.getMongoDatabase());
               logger.info(changeEntry + " reapplied");
             } else {
               logger.info(changeEntry + " passed over");
@@ -189,16 +188,11 @@ public class Mongobee {
     }
   }
 
-  private Object executeChangeSetMethod(Method changeSetMethod, Object changeLogInstance, DB db, MongoDatabase mongoDatabase)
+  private Object executeChangeSetMethod(Method changeSetMethod, Object changeLogInstance, MongoDatabase mongoDatabase)
       throws IllegalAccessException, InvocationTargetException, MongobeeChangeSetException {
     if (changeSetMethod.getParameterTypes().length == 1
-        && changeSetMethod.getParameterTypes()[0].equals(DB.class)) {
-      logger.debug("method with DB argument");
-
-      return changeSetMethod.invoke(changeLogInstance, db);
-    } else if (changeSetMethod.getParameterTypes().length == 1
         && changeSetMethod.getParameterTypes()[0].equals(MongoDatabase.class)) {
-      logger.debug("method with DB argument");
+      logger.debug("method with MongoDatabase argument");
 
       return changeSetMethod.invoke(changeLogInstance, mongoDatabase);
     } else if (changeSetMethod.getParameterTypes().length == 0) {

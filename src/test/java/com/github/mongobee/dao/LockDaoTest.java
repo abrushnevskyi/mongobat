@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import com.mongodb.MongoWriteException;
+import com.mongodb.ServerAddress;
 import com.mongodb.WriteError;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.IndexOptions;
@@ -57,7 +58,8 @@ public class LockDaoTest {
   @Test
   public void shouldNotGetLockWhenPreviouslyHeld() {
     // given
-    MongoWriteException exception = new MongoWriteException(new WriteError(1, "ERROR", new BsonDocument()), null);
+    WriteError writeError = new WriteError(1, "ERROR", new BsonDocument());
+    MongoWriteException exception = new MongoWriteException(writeError, new ServerAddress());
     doNothing().doThrow(exception).when(lockCollection).insertOne(any(Document.class));
 
     LockDao dao = new LockDao(LOCK_COLLECTION_NAME);
@@ -106,7 +108,7 @@ public class LockDaoTest {
 
   @Test
   public void whenLockNotHeldCheckReturnsFalse() {
-    when(lockCollection.count()).thenReturn(0L);
+    when(lockCollection.countDocuments()).thenReturn(0L);
 
     LockDao dao = new LockDao(LOCK_COLLECTION_NAME);
     dao.intitializeLock(db);
@@ -117,7 +119,7 @@ public class LockDaoTest {
 
   @Test
   public void whenLockHeldCheckReturnsTrue() {
-    when(lockCollection.count()).thenReturn(1L);
+    when(lockCollection.countDocuments()).thenReturn(1L);
 
     LockDao dao = new LockDao(LOCK_COLLECTION_NAME);
     dao.intitializeLock(db);

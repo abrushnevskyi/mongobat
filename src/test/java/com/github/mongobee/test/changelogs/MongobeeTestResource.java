@@ -2,7 +2,6 @@ package com.github.mongobee.test.changelogs;
 
 import com.github.mongobee.changeset.ChangeLog;
 import com.github.mongobee.changeset.ChangeSet;
-import com.mongodb.DB;
 import com.mongodb.client.MongoDatabase;
 
 /**
@@ -27,9 +26,9 @@ public class MongobeeTestResource {
   }
 
   @ChangeSet(author = "testuser", id = "test3", order = "03")
-  public void testChangeSet3(DB db) {
+  public void testChangeSet3(MongoDatabase mongoDatabase) {
 
-    System.out.println("invoked 3 with db=" + db);
+    System.out.println("invoked 3 with db=" + mongoDatabase);
 
   }
 
