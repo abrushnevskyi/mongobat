@@ -1,16 +1,5 @@
 package com.github.mongobee;
 
-import static com.mongodb.ServerAddress.defaultHost;
-import static com.mongodb.ServerAddress.defaultPort;
-import static com.github.mongobee.utils.StringUtils.hasText;
-
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.List;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.github.mongobee.changeset.ChangeEntry;
 import com.github.mongobee.dao.ChangeEntryDao;
 import com.github.mongobee.exception.MongobeeChangeSetException;
@@ -20,6 +9,17 @@ import com.github.mongobee.exception.MongobeeException;
 import com.github.mongobee.utils.ChangeService;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoDatabase;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import static com.github.mongobee.utils.StringUtils.hasText;
 
 /**
  * Mongobee runner
@@ -43,6 +43,8 @@ public class Mongobee {
   private String changeLogsScanPackage;
   private MongoClient mongoClient;
   private String dbName;
+
+  private Map<Class<?>, Object> changeSetMethodParams = Map.of();
 
   /**
    * <p>Constructor takes db.mongodb.MongoClient object as a parameter.
@@ -106,11 +108,11 @@ public class Mongobee {
 
           try {
             if (dao.isNewChange(changeEntry)) {
-              executeChangeSetMethod(changesetMethod, changelogInstance, dao.getMongoDatabase());
+              executeChangeSetMethod(changesetMethod, changelogInstance);
               dao.save(changeEntry);
               logger.info(changeEntry + " applied");
             } else if (service.isRunAlwaysChangeSet(changesetMethod)) {
-              executeChangeSetMethod(changesetMethod, changelogInstance, dao.getMongoDatabase());
+              executeChangeSetMethod(changesetMethod, changelogInstance);
               logger.info(changeEntry + " reapplied");
             } else {
               logger.info(changeEntry + " passed over");
@@ -129,21 +131,38 @@ public class Mongobee {
     }
   }
 
-  private Object executeChangeSetMethod(Method changeSetMethod, Object changeLogInstance, MongoDatabase mongoDatabase)
+  private Object executeChangeSetMethod(Method changeSetMethod, Object changeLogInstance)
       throws IllegalAccessException, InvocationTargetException, MongobeeChangeSetException {
-    if (changeSetMethod.getParameterTypes().length == 1
-        && changeSetMethod.getParameterTypes()[0].equals(MongoDatabase.class)) {
-      logger.debug("method with MongoDatabase argument");
 
-      return changeSetMethod.invoke(changeLogInstance, mongoDatabase);
-    } else if (changeSetMethod.getParameterTypes().length == 0) {
+    if (changeSetMethod.getParameterCount() == 0) {
       logger.debug("method with no params");
-
       return changeSetMethod.invoke(changeLogInstance);
-    } else {
-      throw new MongobeeChangeSetException("ChangeSet method " + changeSetMethod.getName() +
-          " has wrong arguments list. Please see docs for more info!");
     }
+
+    return changeSetMethod.invoke(changeLogInstance, getParameters(changeSetMethod));
+  }
+
+  private Object[] getParameters(Method changeSetMethod) throws MongobeeChangeSetException {
+    Object[] parameters = new Object[changeSetMethod.getParameterCount()];
+
+    for (int i = 0; i < changeSetMethod.getParameterCount(); i++) {
+      Class<?> type = changeSetMethod.getParameterTypes()[i];
+      if (type.equals(MongoDatabase.class)) {
+        parameters[i] = dao.getMongoDatabase();
+      } else if (changeSetMethodParams.containsKey(type)) {
+        parameters[i] = changeSetMethodParams.get(type);
+      } else {
+        throw new MongobeeChangeSetException("ChangeSet method " + changeSetMethod.getName() +
+            " has wrong arguments list. Unsupported type: " + type.getSimpleName());
+      }
+    }
+
+    String paramsTypes = Arrays.stream(parameters)
+        .map(o -> o.getClass().getSimpleName())
+        .collect(Collectors.joining(", "));
+    logger.debug("method with arguments: {}", paramsTypes);
+
+    return parameters;
   }
 
   private void validateConfig() throws MongobeeConfigurationException {
@@ -164,13 +183,24 @@ public class Mongobee {
   }
 
   /**
-   * Used DB name should be set here or via MongoDB URI (in a constructor)
+   * Used DB name should be set here
    *
    * @param dbName database name
    * @return Mongobee object for fluent interface
    */
   public Mongobee setDbName(String dbName) {
     this.dbName = dbName;
+    return this;
+  }
+
+  /**
+   * Optional params for ChangeSet methods
+   *
+   * @param changeSetMethodParams instances of additional params which can be used in ChangeSet methods
+   * @return Mongobee object for fluent interface
+   */
+  public Mongobee setChangeSetMethodParams(Map<Class<?>, Object> changeSetMethodParams) {
+    this.changeSetMethodParams = Map.copyOf(changeSetMethodParams);
     return this;
   }
 

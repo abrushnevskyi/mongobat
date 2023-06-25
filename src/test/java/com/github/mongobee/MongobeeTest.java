@@ -3,9 +3,9 @@ package com.github.mongobee;
 import com.github.mongobee.changeset.ChangeEntry;
 import com.github.mongobee.dao.ChangeEntryDao;
 import com.github.mongobee.dao.ChangeEntryIndexDao;
-import com.github.mongobee.exception.MongobeeConfigurationException;
-import com.github.mongobee.exception.MongobeeException;
+import com.github.mongobee.exception.*;
 import com.github.mongobee.test.changelogs.MongobeeTestResource;
+import com.github.mongobee.changelog.CustomParamsChangeLog;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
@@ -16,6 +16,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -144,7 +146,6 @@ public class MongobeeTest {
 
   @Test
   public void shouldReleaseLockWhenExceptionInMigration() throws Exception {
-
     // given
     // would be nicer with a mock for the whole execution, but this would mean breaking out to separate class..
     // this should be "good enough"
@@ -161,5 +162,32 @@ public class MongobeeTest {
     // then
     verify(dao).releaseProcessLock();
   }
+
+  @Test
+  public void shouldIgnoreChangeSetsWithUnsupportedParameterType() throws Exception {
+    runner.setChangeLogsScanPackage(CustomParamsChangeLog.class.getPackage().getName());
+
+    when(dao.acquireProcessLock()).thenReturn(true);
+    when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(true);
+
+    runner.execute();
+
+    verify(dao, never()).save(any(ChangeEntry.class));
+  }
+
+  @Test
+  public void shouldRunChangeSetsWhenCustomParametersWereDefined() throws Exception {
+    runner.setChangeLogsScanPackage(CustomParamsChangeLog.class.getPackage().getName());
+    runner.setChangeSetMethodParams(Map.of(Document.class, new Document(), MongoClient.class, mongoClient));
+
+    when(dao.acquireProcessLock()).thenReturn(true);
+    when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(true);
+    when(fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME)).thenReturn(mongoCollection);
+
+    runner.execute();
+
+    verify(dao, times(2)).save(any(ChangeEntry.class));
+  }
+
 
 }
