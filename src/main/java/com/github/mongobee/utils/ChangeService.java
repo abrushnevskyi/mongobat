@@ -64,7 +64,10 @@ public class ChangeService {
           annotation.author(),
           new Date(),
           changesetMethod.getDeclaringClass().getName(),
-          changesetMethod.getName());
+          changesetMethod.getName(),
+          annotation.description(),
+          annotation.group(),
+          annotation.environment());
     } else {
       return null;
     }

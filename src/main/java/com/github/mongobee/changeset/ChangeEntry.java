@@ -12,50 +12,78 @@ import org.bson.Document;
  * @since 27/07/2014
  */
 public class ChangeEntry {
-  public static final String KEY_CHANGEID = "changeId";
+
+  public static final String KEY_CHANGE_ID = "changeId";
   public static final String KEY_AUTHOR = "author";
   public static final String KEY_TIMESTAMP = "timestamp";
-  public static final String KEY_CHANGELOGCLASS = "changeLogClass";
-  public static final String KEY_CHANGESETMETHOD = "changeSetMethod";
+  public static final String KEY_CHANGELOG_CLASS = "changeLogClass";
+  public static final String KEY_CHANGESET_METHOD = "changeSetMethod";
+  public static final String KEY_DESCRIPTION = "description";
+  public static final String KEY_GROUP = "group";
+  public static final String KEY_ENVIRONMENT = "environment";
 
-  private String changeId;
-  private String author;
-  private Date timestamp;
-  private String changeLogClass;
-  private String changeSetMethodName;
-  
-  public ChangeEntry(String changeId, String author, Date timestamp, String changeLogClass, String changeSetMethodName) {
+  private final String changeId;
+  private final String author;
+  private final Date timestamp;
+  private final String changeLogClass;
+  private final String changeSetMethodName;
+  private final String description;
+  private final String group;
+  private final String environment;
+
+  public ChangeEntry(
+      String changeId,
+      String author,
+      Date timestamp,
+      String changeLogClass,
+      String changeSetMethodName,
+      String description,
+      String group,
+      String environment
+  ) {
     this.changeId = changeId;
     this.author = author;
     this.timestamp = new Date(timestamp.getTime());
     this.changeLogClass = changeLogClass;
     this.changeSetMethodName = changeSetMethodName;
+    this.description = description;
+    this.group = group;
+    this.environment = environment;
   }
 
   public Document buildFullDBObject() {
     Document entry = new Document();
 
-    entry.append(KEY_CHANGEID, this.changeId)
+    entry.append(KEY_CHANGE_ID, this.changeId)
         .append(KEY_AUTHOR, this.author)
         .append(KEY_TIMESTAMP, this.timestamp)
-        .append(KEY_CHANGELOGCLASS, this.changeLogClass)
-        .append(KEY_CHANGESETMETHOD, this.changeSetMethodName);
+        .append(KEY_CHANGELOG_CLASS, this.changeLogClass)
+        .append(KEY_CHANGESET_METHOD, this.changeSetMethodName)
+        .append(KEY_DESCRIPTION, this.description)
+        .append(KEY_GROUP, this.group)
+        .append(KEY_ENVIRONMENT, this.environment);
 
     return entry;
   }
 
   public Document buildSearchQueryDBObject() {
     return new Document()
-        .append(KEY_CHANGEID, this.changeId)
+        .append(KEY_CHANGE_ID, this.changeId)
         .append(KEY_AUTHOR, this.author);
   }
 
   @Override
   public String toString() {
-    return "[ChangeSet: id=" + this.changeId +
-        ", author=" + this.author +
-        ", changeLogClass=" + this.changeLogClass +
-        ", changeSetMethod=" + this.changeSetMethodName + "]";
+    return "ChangeEntry{" +
+        "changeId='" + changeId + '\'' +
+        ", author='" + author + '\'' +
+        ", timestamp=" + timestamp +
+        ", changeLogClass='" + changeLogClass + '\'' +
+        ", changeSetMethodName='" + changeSetMethodName + '\'' +
+        ", description='" + description + '\'' +
+        ", group='" + group + '\'' +
+        ", environment='" + environment + '\'' +
+        '}';
   }
 
   public String getChangeId() {
@@ -77,5 +105,16 @@ public class ChangeEntry {
   public String getChangeSetMethodName() {
     return this.changeSetMethodName;
   }
-  
+
+  public String getDescription() {
+    return description;
+  }
+
+  public String getGroup() {
+    return group;
+  }
+
+  public String getEnvironment() {
+    return environment;
+  }
 }

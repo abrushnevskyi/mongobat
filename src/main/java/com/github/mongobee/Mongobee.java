@@ -7,6 +7,7 @@ import com.github.mongobee.exception.MongobeeConfigurationException;
 import com.github.mongobee.exception.MongobeeConnectionException;
 import com.github.mongobee.exception.MongobeeException;
 import com.github.mongobee.utils.ChangeService;
+import com.github.mongobee.utils.Environment;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoDatabase;
 import org.slf4j.Logger;
@@ -43,6 +44,7 @@ public class Mongobee {
   private String changeLogsScanPackage;
   private MongoClient mongoClient;
   private String dbName;
+  private String environment = Environment.ANY;
 
   private Map<Class<?>, Object> changeSetMethodParams = Map.of();
 
@@ -107,6 +109,10 @@ public class Mongobee {
           ChangeEntry changeEntry = service.createChangeEntry(changesetMethod);
 
           try {
+            if (!changeEntry.getEnvironment().equals(this.environment) && !Environment.ANY.equals(this.environment) && !Environment.ANY.equals(changeEntry.getEnvironment())) {
+              logger.info(changeEntry + " skipped (wrong environment)");
+              continue;
+            }
             if (dao.isNewChange(changeEntry)) {
               executeChangeSetMethod(changesetMethod, changelogInstance);
               dao.save(changeEntry);
@@ -190,6 +196,17 @@ public class Mongobee {
    */
   public Mongobee setDbName(String dbName) {
     this.dbName = dbName;
+    return this;
+  }
+
+  /**
+   * Initialize environment type. Only {@link com.github.mongobee.changeset.ChangeSet} with environment marked as ANY (default) or the same value will be executed
+   *
+   * @param environment environment type
+   * @return Mongobee object for fluent interface
+   */
+  public Mongobee setEnvironment(String environment) {
+    this.environment = environment;
     return this;
   }
 

@@ -1,11 +1,13 @@
 package com.github.mongobee;
 
+import com.github.mongobee.changelog.environments.EnvironmentsChangeLog;
 import com.github.mongobee.changeset.ChangeEntry;
 import com.github.mongobee.dao.ChangeEntryDao;
 import com.github.mongobee.dao.ChangeEntryIndexDao;
 import com.github.mongobee.exception.*;
 import com.github.mongobee.test.changelogs.MongobeeTestResource;
-import com.github.mongobee.changelog.CustomParamsChangeLog;
+import com.github.mongobee.changelog.params.CustomParamsChangeLog;
+import com.github.mongobee.utils.Environment;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
@@ -169,10 +171,11 @@ public class MongobeeTest {
 
     when(dao.acquireProcessLock()).thenReturn(true);
     when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(true);
+    when(fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME)).thenReturn(mongoCollection);
 
     runner.execute();
 
-    verify(dao, never()).save(any(ChangeEntry.class));
+    verify(dao).save(any(ChangeEntry.class));
   }
 
   @Test
@@ -186,8 +189,34 @@ public class MongobeeTest {
 
     runner.execute();
 
+    verify(dao, times(5)).save(any(ChangeEntry.class));
+  }
+
+  @Test
+  public void shouldRunChangeSetsForSelectedEnvironment() throws Exception {
+    runner.setChangeLogsScanPackage(EnvironmentsChangeLog.class.getPackage().getName());
+    runner.setEnvironment(Environment.PROD);
+
+    when(dao.acquireProcessLock()).thenReturn(true);
+    when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(true);
+    when(fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME)).thenReturn(mongoCollection);
+
+    runner.execute();
+
     verify(dao, times(2)).save(any(ChangeEntry.class));
   }
 
+  @Test
+  public void shouldRunAllChangeSetsWhenEnvironmentIsNotDefined() throws Exception {
+    runner.setChangeLogsScanPackage(EnvironmentsChangeLog.class.getPackage().getName());
+
+    when(dao.acquireProcessLock()).thenReturn(true);
+    when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(true);
+    when(fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME)).thenReturn(mongoCollection);
+
+    runner.execute();
+
+    verify(dao, times(5)).save(any(ChangeEntry.class));
+  }
 
 }

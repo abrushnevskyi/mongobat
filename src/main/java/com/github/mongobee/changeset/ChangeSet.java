@@ -1,5 +1,7 @@
 package com.github.mongobee.changeset;
 
+import com.github.mongobee.utils.Environment;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -20,32 +22,48 @@ public @interface ChangeSet {
    * Obligatory
    * @return author
    */
-  public String author();  // must be set
+  String author();
 
   /**
    * Unique ID of the changeset.
    * Obligatory
    * @return unique id
    */
-  public String id();      // must be set
+  String id();
 
   /**
    * Sequence that provide correct order for changesets. Sorted alphabetically, ascending.
    * Obligatory.
    * @return ordering
    */
-  public String order();   // must be set
+  String order();
+
+  /**
+   * Changeset description.
+   * Obligatory
+   * @return description
+   */
+  String description();
 
   /**
    * Executes the change set on every mongobee's execution, even if it has been run before.
    * Optional (default is false)
    * @return should run always?
    */
-  public boolean runAlways() default false;
-//
-//  /**
-//   * Executes the change the first time it is seen and each time the change set has been changed. <br/>
-//   * Optional (default is false)
-//   */
-//  public boolean runOnChange() default false;
+  boolean runAlways() default false;
+
+  /**
+   * Changeset group.
+   * Optional
+   * @return group
+   */
+  String group() default "";
+
+  /**
+   * Change set will be executed only if environment match.
+   * Optional
+   * @return environment
+   */
+  String environment() default Environment.ANY;
+
 }
