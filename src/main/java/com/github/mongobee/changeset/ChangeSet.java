@@ -60,10 +60,18 @@ public @interface ChangeSet {
   String group() default "";
 
   /**
-   * Change set will be executed only if environment match.
+   * Changeset will be executed only if environment match.
    * Optional
    * @return environment
    */
   String environment() default Environment.ANY;
+
+  /**
+   * Changeset marked as postponed will be skipped during global execution
+   * runAlways is ignored for postponed changesets
+   * Optional
+   * @return postponed
+   */
+  boolean postponed() default false;
 
 }

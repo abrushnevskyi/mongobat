@@ -1,12 +1,14 @@
 package com.github.mongobee;
 
 import com.github.mongobee.changelog.environments.EnvironmentsChangeLog;
+import com.github.mongobee.changelog.postponed.PostponedChangeLog;
 import com.github.mongobee.changeset.ChangeEntry;
 import com.github.mongobee.dao.ChangeEntryDao;
 import com.github.mongobee.dao.ChangeEntryIndexDao;
 import com.github.mongobee.exception.*;
 import com.github.mongobee.test.changelogs.MongobeeTestResource;
 import com.github.mongobee.changelog.params.CustomParamsChangeLog;
+import com.github.mongobee.utils.ChangeSetExecutionChecker;
 import com.github.mongobee.utils.Environment;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
@@ -45,6 +47,9 @@ public class MongobeeTest {
 
   @Mock
   private MongoClient mongoClient;
+
+  @Mock
+  private ChangeSetExecutionChecker executionChecker;
 
   @InjectMocks
   private Mongobee runner = new Mongobee(mongoClient);
@@ -168,6 +173,7 @@ public class MongobeeTest {
   @Test
   public void shouldIgnoreChangeSetsWithUnsupportedParameterType() throws Exception {
     runner.setChangeLogsScanPackage(CustomParamsChangeLog.class.getPackage().getName());
+    runner.setChangeSetMethodParams(Map.of(ChangeSetExecutionChecker.class, executionChecker));
 
     when(dao.acquireProcessLock()).thenReturn(true);
     when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(true);
@@ -175,13 +181,14 @@ public class MongobeeTest {
 
     runner.execute();
 
+    verify(executionChecker).execute(CustomParamsChangeLog.CHANGESET5);
     verify(dao).save(any(ChangeEntry.class));
   }
 
   @Test
   public void shouldRunChangeSetsWhenCustomParametersWereDefined() throws Exception {
     runner.setChangeLogsScanPackage(CustomParamsChangeLog.class.getPackage().getName());
-    runner.setChangeSetMethodParams(Map.of(Document.class, new Document(), MongoClient.class, mongoClient));
+    runner.setChangeSetMethodParams(Map.of(Document.class, new Document(), MongoClient.class, mongoClient, ChangeSetExecutionChecker.class, executionChecker));
 
     when(dao.acquireProcessLock()).thenReturn(true);
     when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(true);
@@ -189,6 +196,7 @@ public class MongobeeTest {
 
     runner.execute();
 
+    verify(executionChecker, times(5)).execute(anyString());
     verify(dao, times(5)).save(any(ChangeEntry.class));
   }
 
@@ -196,27 +204,64 @@ public class MongobeeTest {
   public void shouldRunChangeSetsForSelectedEnvironment() throws Exception {
     runner.setChangeLogsScanPackage(EnvironmentsChangeLog.class.getPackage().getName());
     runner.setEnvironment(Environment.PROD);
+    runner.setChangeSetMethodParams(Map.of(ChangeSetExecutionChecker.class, executionChecker));
 
     when(dao.acquireProcessLock()).thenReturn(true);
     when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(true);
     when(fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME)).thenReturn(mongoCollection);
+    doCallRealMethod().when(executionChecker).execute(anyString());
 
     runner.execute();
 
+    verify(executionChecker).execute(Environment.PROD);
+    verify(executionChecker).execute(Environment.ANY);
     verify(dao, times(2)).save(any(ChangeEntry.class));
   }
 
   @Test
   public void shouldRunAllChangeSetsWhenEnvironmentIsNotDefined() throws Exception {
     runner.setChangeLogsScanPackage(EnvironmentsChangeLog.class.getPackage().getName());
+    runner.setChangeSetMethodParams(Map.of(ChangeSetExecutionChecker.class, executionChecker));
 
     when(dao.acquireProcessLock()).thenReturn(true);
     when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(true);
     when(fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME)).thenReturn(mongoCollection);
+    doCallRealMethod().when(executionChecker).execute(anyString());
 
     runner.execute();
 
+    verify(executionChecker, times(5)).execute(anyString());
     verify(dao, times(5)).save(any(ChangeEntry.class));
+  }
+
+  @Test
+  public void shouldNotExecutePostponedChangeSets() throws Exception {
+    runner.setChangeLogsScanPackage(PostponedChangeLog.class.getPackage().getName());
+    runner.setChangeSetMethodParams(Map.of(ChangeSetExecutionChecker.class, executionChecker));
+
+    when(dao.acquireProcessLock()).thenReturn(true);
+    when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(true);
+    when(fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME)).thenReturn(mongoCollection);
+    doCallRealMethod().when(executionChecker).execute(anyString());
+
+    runner.execute();
+
+    verify(executionChecker).execute(PostponedChangeLog.NOT_POSTPONED);
+    verify(dao, times(3)).save(any(ChangeEntry.class));
+  }
+
+  @Test
+  public void shouldIgnoreRunAlwaysFlagForPostponedChangeSets() throws Exception {
+    runner.setChangeLogsScanPackage(PostponedChangeLog.class.getPackage().getName());
+    runner.setChangeSetMethodParams(Map.of(ChangeSetExecutionChecker.class, executionChecker));
+
+    when(dao.acquireProcessLock()).thenReturn(true);
+    when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(false);
+
+    runner.execute();
+
+    verify(executionChecker, never()).execute(anyString());
+    verify(dao, never()).save(any(ChangeEntry.class));
   }
 
 }

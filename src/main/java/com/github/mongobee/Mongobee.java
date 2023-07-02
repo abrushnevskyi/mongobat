@@ -1,6 +1,7 @@
 package com.github.mongobee;
 
 import com.github.mongobee.changeset.ChangeEntry;
+import com.github.mongobee.changeset.ChangeSet;
 import com.github.mongobee.dao.ChangeEntryDao;
 import com.github.mongobee.exception.MongobeeChangeSetException;
 import com.github.mongobee.exception.MongobeeConfigurationException;
@@ -114,10 +115,12 @@ public class Mongobee {
               continue;
             }
             if (dao.isNewChange(changeEntry)) {
-              executeChangeSetMethod(changesetMethod, changelogInstance);
+              if (!service.isPostponed(changesetMethod)) {
+                executeChangeSetMethod(changesetMethod, changelogInstance);
+              }
               dao.save(changeEntry);
               logger.info(changeEntry + " applied");
-            } else if (service.isRunAlwaysChangeSet(changesetMethod)) {
+            } else if (service.isRunAlwaysChangeSet(changesetMethod) && !service.isPostponed(changesetMethod)) {
               executeChangeSetMethod(changesetMethod, changelogInstance);
               logger.info(changeEntry + " reapplied");
             } else {

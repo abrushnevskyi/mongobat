@@ -30,6 +30,7 @@ public class ChangeEntry {
   private final String description;
   private final String group;
   private final String environment;
+  private final boolean postponed;
 
   public ChangeEntry(
       String changeId,
@@ -39,7 +40,8 @@ public class ChangeEntry {
       String changeSetMethodName,
       String description,
       String group,
-      String environment
+      String environment,
+      boolean postponed
   ) {
     this.changeId = changeId;
     this.author = author;
@@ -49,6 +51,7 @@ public class ChangeEntry {
     this.description = description;
     this.group = group;
     this.environment = environment;
+    this.postponed = postponed;
   }
 
   public Document buildFullDBObject() {
@@ -83,6 +86,7 @@ public class ChangeEntry {
         ", description='" + description + '\'' +
         ", group='" + group + '\'' +
         ", environment='" + environment + '\'' +
+        ", postponed=" + postponed +
         '}';
   }
 
@@ -116,5 +120,9 @@ public class ChangeEntry {
 
   public String getEnvironment() {
     return environment;
+  }
+
+  public boolean isPostponed() {
+    return postponed;
   }
 }

@@ -7,11 +7,7 @@ import com.github.mongobee.exception.MongobeeChangeSetException;
 import org.reflections.Reflections;
 
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import static java.util.Arrays.asList;
 
@@ -67,7 +63,8 @@ public class ChangeService {
           changesetMethod.getName(),
           annotation.description(),
           annotation.group(),
-          annotation.environment());
+          annotation.environment(),
+          annotation.postponed());
     } else {
       return null;
     }
@@ -87,6 +84,12 @@ public class ChangeService {
       }
     }
     return changesetMethods;
+  }
+
+  public boolean isPostponed(Method method) {
+    return Optional.ofNullable(method.getAnnotation(ChangeSet.class))
+        .map(ChangeSet::postponed)
+        .orElse(false);
   }
 
 }
