@@ -64,7 +64,8 @@ public class ChangeService {
           annotation.description(),
           annotation.group(),
           annotation.environment(),
-          annotation.postponed());
+          annotation.postponed(),
+          annotation.repeatable());
     } else {
       return null;
     }
@@ -89,6 +90,12 @@ public class ChangeService {
   public boolean isPostponed(Method method) {
     return Optional.ofNullable(method.getAnnotation(ChangeSet.class))
         .map(ChangeSet::postponed)
+        .orElse(false);
+  }
+
+  public boolean isRepeatable(Method method) {
+    return Optional.ofNullable(method.getAnnotation(ChangeSet.class))
+        .map(ChangeSet::repeatable)
         .orElse(false);
   }
 

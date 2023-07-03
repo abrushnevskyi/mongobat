@@ -74,4 +74,11 @@ public @interface ChangeSet {
    */
   boolean postponed() default false;
 
+  /**
+   * Changeset marked as not repeatable can be executed only once
+   * Optional
+   * @return repeatable
+   */
+  boolean repeatable() default true;
+
 }

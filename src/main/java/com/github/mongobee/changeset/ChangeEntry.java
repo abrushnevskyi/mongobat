@@ -21,6 +21,8 @@ public class ChangeEntry {
   public static final String KEY_DESCRIPTION = "description";
   public static final String KEY_GROUP = "group";
   public static final String KEY_ENVIRONMENT = "environment";
+  public static final String KEY_POSTPONED = "postponed";
+  public static final String KEY_REPEATABLE = "repeatable";
 
   private final String changeId;
   private final String author;
@@ -31,6 +33,7 @@ public class ChangeEntry {
   private final String group;
   private final String environment;
   private final boolean postponed;
+  private final boolean repeatable;
 
   public ChangeEntry(
       String changeId,
@@ -41,7 +44,8 @@ public class ChangeEntry {
       String description,
       String group,
       String environment,
-      boolean postponed
+      boolean postponed,
+      boolean repeatable
   ) {
     this.changeId = changeId;
     this.author = author;
@@ -52,6 +56,7 @@ public class ChangeEntry {
     this.group = group;
     this.environment = environment;
     this.postponed = postponed;
+    this.repeatable = repeatable;
   }
 
   public Document buildFullDBObject() {
@@ -64,7 +69,9 @@ public class ChangeEntry {
         .append(KEY_CHANGESET_METHOD, this.changeSetMethodName)
         .append(KEY_DESCRIPTION, this.description)
         .append(KEY_GROUP, this.group)
-        .append(KEY_ENVIRONMENT, this.environment);
+        .append(KEY_ENVIRONMENT, this.environment)
+        .append(KEY_POSTPONED, this.postponed)
+        .append(KEY_REPEATABLE, this.repeatable);
 
     return entry;
   }
@@ -87,6 +94,7 @@ public class ChangeEntry {
         ", group='" + group + '\'' +
         ", environment='" + environment + '\'' +
         ", postponed=" + postponed +
+        ", repeatable=" + repeatable +
         '}';
   }
 
@@ -124,5 +132,9 @@ public class ChangeEntry {
 
   public boolean isPostponed() {
     return postponed;
+  }
+
+  public boolean isRepeatable() {
+    return repeatable;
   }
 }

@@ -120,7 +120,7 @@ public class Mongobee {
               }
               dao.save(changeEntry);
               logger.info(changeEntry + " applied");
-            } else if (service.isRunAlwaysChangeSet(changesetMethod) && !service.isPostponed(changesetMethod)) {
+            } else if (service.isRunAlwaysChangeSet(changesetMethod) && service.isRepeatable(changesetMethod) && !service.isPostponed(changesetMethod)) {
               executeChangeSetMethod(changesetMethod, changelogInstance);
               logger.info(changeEntry + " reapplied");
             } else {
