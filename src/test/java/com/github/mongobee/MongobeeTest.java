@@ -1,13 +1,16 @@
 package com.github.mongobee;
 
 import com.github.mongobee.changelog.environments.EnvironmentsChangeLog;
+import com.github.mongobee.changelog.params.CustomParamsChangeLog;
 import com.github.mongobee.changelog.postponed.PostponedChangeLog;
+import com.github.mongobee.changelog.repeatable.RepeatableChangeLog;
 import com.github.mongobee.changeset.ChangeEntry;
 import com.github.mongobee.dao.ChangeEntryDao;
 import com.github.mongobee.dao.ChangeEntryIndexDao;
-import com.github.mongobee.exception.*;
+import com.github.mongobee.exception.MongobeeChangeSetException;
+import com.github.mongobee.exception.MongobeeConfigurationException;
+import com.github.mongobee.exception.MongobeeException;
 import com.github.mongobee.test.changelogs.MongobeeTestResource;
-import com.github.mongobee.changelog.params.CustomParamsChangeLog;
 import com.github.mongobee.utils.ChangeSetExecutionChecker;
 import com.github.mongobee.utils.Environment;
 import com.mongodb.client.MongoClient;
@@ -21,9 +24,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Date;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -262,6 +267,53 @@ public class MongobeeTest {
 
     verify(executionChecker, never()).execute(anyString());
     verify(dao, never()).save(any(ChangeEntry.class));
+  }
+
+  @Test
+  public void shouldRunSingleChangeSetRegardlessOfRepeatableWhenIsNew() throws Exception {
+    runner.setChangeLogsScanPackage(RepeatableChangeLog.class.getPackage().getName());
+    runner.setChangeSetMethodParams(Map.of(ChangeSetExecutionChecker.class, executionChecker));
+
+    when(dao.acquireProcessLock()).thenReturn(true);
+    when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(true);
+    when(fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME)).thenReturn(mongoCollection);
+    doCallRealMethod().when(executionChecker).execute(anyString());
+
+    ChangeEntry changeEntry = createChangeEntry("id1", "changeSet1", false);
+    runner.executeSingle(changeEntry);
+
+    verify(executionChecker).execute("111");
+    verify(dao).save(any(ChangeEntry.class));
+  }
+
+  @Test
+  public void shouldNotRerunSingleChangeSetWhenRepeatableIsFalse() throws Exception {
+    runner.setChangeLogsScanPackage(RepeatableChangeLog.class.getPackage().getName());
+
+    when(dao.acquireProcessLock()).thenReturn(true);
+    when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(false);
+
+    ChangeEntry changeEntry = createChangeEntry("id1", "changeSet1", false);
+    assertThrows(MongobeeChangeSetException.class, () -> runner.executeSingle(changeEntry));
+  }
+
+  @Test
+  public void shouldRerunSingleChangeSetWhenRepeatableIsTrue() throws Exception {
+    runner.setChangeLogsScanPackage(RepeatableChangeLog.class.getPackage().getName());
+    runner.setChangeSetMethodParams(Map.of(ChangeSetExecutionChecker.class, executionChecker));
+
+    when(dao.acquireProcessLock()).thenReturn(true);
+    when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(false);
+    when(fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME)).thenReturn(mongoCollection);
+
+    ChangeEntry changeEntry = createChangeEntry("id2", "changeSet2", true);
+    runner.executeSingle(changeEntry);
+
+    verify(dao).save(any(ChangeEntry.class));
+  }
+
+  private ChangeEntry createChangeEntry(String changeId, String changeSetMethodName, boolean repeatable) {
+    return new ChangeEntry(changeId, "testUser", new Date(), RepeatableChangeLog.class.getName(), changeSetMethodName, "", "", Environment.ANY, false, repeatable);
   }
 
 }

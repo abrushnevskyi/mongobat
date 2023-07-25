@@ -63,6 +63,56 @@ public class Mongobee {
         DEFAULT_CHANGE_LOG_LOCK_WAIT_TIME, DEFAULT_CHANGE_LOG_LOCK_POLL_RATE, DEFAULT_THROW_EXCEPTION_IF_CANNOT_OBTAIN_LOCK);
   }
 
+  public void executeSingle(ChangeEntry changeEntry) throws MongobeeException, ClassNotFoundException, NoSuchMethodException, InvocationTargetException, IllegalAccessException, InstantiationException {
+    if (!isEnabled()) {
+      logger.info("Mongobee is disabled. Exiting.");
+      return;
+    }
+
+    validateConfig();
+
+    dao.connectMongoDb(this.mongoClient, dbName);
+
+    if (!dao.acquireProcessLock()) {
+      logger.info("Mongobee did not acquire process lock. Exiting.");
+      return;
+    }
+
+    logger.info("Mongobee acquired process lock, starting the data migration sequence..");
+
+    try {
+      Class<?> changeLogClass = Class.forName(changeEntry.getChangeLogClass());
+      Method method = Arrays.stream(changeLogClass.getDeclaredMethods())
+          .filter(m -> m.getName().equals(changeEntry.getChangeSetMethodName()))
+          .findFirst()
+          .orElseThrow(() -> new MongobeeException("No method " + changeEntry.getChangeSetMethodName() + " found."));
+
+      ChangeSet changeSet = method.getAnnotation(ChangeSet.class);
+      if (!changeSet.environment().equals(this.environment) && !Environment.ANY.equals(this.environment) && !Environment.ANY.equals(changeSet.environment())) {
+        throw new MongobeeException(changeEntry.getChangeId() + " can be executed only on " + changeSet.environment() + " environment");
+      }
+
+      Object changeLogInstance = changeLogClass.getConstructor().newInstance();
+      if (dao.isNewChange(changeEntry)) {
+        executeChangeSetMethod(method, changeLogInstance);
+        dao.save(changeEntry);
+        logger.info(changeEntry + " applied");
+      } else if (changeSet.repeatable()) {
+        executeChangeSetMethod(method, changeLogInstance);
+        dao.save(changeEntry);
+        logger.info(changeEntry + " reapplied");
+      } else {
+        throw new MongobeeChangeSetException("Changeset " + changeEntry.getChangeId() + " cannot be executed");
+      }
+
+    } finally {
+      logger.info("Mongobee is releasing process lock.");
+      dao.releaseProcessLock();
+    }
+
+    logger.info("Mongobee has finished his job.");
+  }
+
   /**
    * Executing migration
    *
@@ -117,11 +167,14 @@ public class Mongobee {
             if (dao.isNewChange(changeEntry)) {
               if (!service.isPostponed(changesetMethod)) {
                 executeChangeSetMethod(changesetMethod, changelogInstance);
+                logger.info(changeEntry + " applied");
+              } else {
+                logger.info(changeEntry + " postponed");
               }
               dao.save(changeEntry);
-              logger.info(changeEntry + " applied");
             } else if (service.isRunAlwaysChangeSet(changesetMethod) && service.isRepeatable(changesetMethod) && !service.isPostponed(changesetMethod)) {
               executeChangeSetMethod(changesetMethod, changelogInstance);
+              dao.save(changeEntry);
               logger.info(changeEntry + " reapplied");
             } else {
               logger.info(changeEntry + " passed over");
