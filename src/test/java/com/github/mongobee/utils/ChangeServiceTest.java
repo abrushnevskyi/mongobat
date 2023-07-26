@@ -1,5 +1,6 @@
 package com.github.mongobee.utils;
 
+import com.github.mongobee.changelog.repeatable.RepeatableChangeLog;
 import com.github.mongobee.changeset.ChangeEntry;
 import com.github.mongobee.exception.MongobeeChangeSetException;
 import com.github.mongobee.test.changelogs.AnotherMongobeeTestResource;
@@ -101,6 +102,17 @@ public class ChangeServiceTest {
     String scanPackage = ChangeLogWithDuplicate.class.getPackage().getName();
     ChangeService service = new ChangeService(scanPackage);
     assertThrows(MongobeeChangeSetException.class, () -> service.fetchChangeSets(ChangeLogWithDuplicate.class));
+  }
+
+  @Test
+  public void shouldFindAllChangesLogsInNestedPackages() {
+    String packageName = RepeatableChangeLog.class.getPackage().getName();
+    String parentPackageName = packageName.substring(0, packageName.lastIndexOf("."));
+
+    ChangeService service = new ChangeService(parentPackageName);
+    List<Class<?>> changeLogs = service.fetchChangeLogs();
+
+    assertEquals(4, changeLogs.size());
   }
 
 }
