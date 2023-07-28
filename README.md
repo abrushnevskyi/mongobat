@@ -1,4 +1,4 @@
-![mongobat]()
+<img src="misc/mongobat.png" alt="MongoBat" width="50%" height="50%">
 
 [![Licence](https://img.shields.io/hexpm/l/plug.svg)](https://github.com/mongobat/mongobat/blob/dev/LICENSE)
 ---
