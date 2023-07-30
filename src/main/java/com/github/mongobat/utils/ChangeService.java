@@ -1,14 +1,12 @@
 package com.github.mongobat.utils;
 
 import com.github.mongobat.changeset.ChangeEntry;
+import com.github.mongobat.changeset.ChangeLog;
 import com.github.mongobat.changeset.ChangeSet;
 import com.github.mongobat.exception.MongoBatChangeSetException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.reflections.Reflections;
 
-import java.io.File;
 import java.lang.reflect.Method;
-import java.net.URL;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -22,12 +20,6 @@ import static java.util.Arrays.asList;
  */
 public class ChangeService {
 
-  private static final Logger log = LoggerFactory.getLogger(ChangeService.class);
-
-  private static final char PACKAGE_NAME_SEPARATOR = '.';
-  private static final char DIRECTORY_NAME_SEPARATOR = '/';
-  private static final String CLASS_FILE_EXTENSION = ".class";
-
   private final String changeLogsBasePackage;
 
   public ChangeService(String changeLogsBasePackage) {
@@ -35,8 +27,8 @@ public class ChangeService {
   }
 
   public List<Class<?>> fetchChangeLogs(){
-    String path = formatAsDirectory(changeLogsBasePackage);
-    Set<Class<?>> changeLogs = fetchChangeLogs(path);
+    Reflections reflections = new Reflections(changeLogsBasePackage);
+    Set<Class<?>> changeLogs = reflections.getTypesAnnotatedWith(ChangeLog.class);
 
     return changeLogs.stream()
         .sorted(new ChangeLogComparator())
@@ -78,59 +70,6 @@ public class ChangeService {
     } else {
       return null;
     }
-  }
-
-  private String formatAsDirectory(String path) {
-    return path.replace(PACKAGE_NAME_SEPARATOR, DIRECTORY_NAME_SEPARATOR);
-  }
-
-  private Set<Class<?>> fetchChangeLogs(String resourcePath) {
-    try {
-      URL resource = getResource(resourcePath);
-      if (resource == null) {
-        log.warn("Resource {} not found.", resourcePath);
-        return Set.of();
-      }
-
-      File[] files = new File(resource.toURI()).listFiles();
-      if (files == null) {
-        log.warn("Resource {} is not a directory", resourcePath);
-        return Set.of();
-      }
-
-      return fetchChangeLogs(files, resourcePath);
-    } catch (Exception e) {
-      throw new RuntimeException(e.getMessage(), e);
-    }
-  }
-
-  private URL getResource(String name) {
-    return Thread.currentThread().getContextClassLoader().getResource(name);
-  }
-
-  private Set<Class<?>> fetchChangeLogs(File[] files, String resourcePath) throws ClassNotFoundException {
-    Set<Class<?>> changeLogs = new HashSet<>();
-
-    for (File file : files) {
-      if (file.isFile() && file.getName().endsWith(CLASS_FILE_EXTENSION)) {
-        String className = formatAsPackage(resourcePath) + PACKAGE_NAME_SEPARATOR + getNameWithoutExtension(file);
-        changeLogs.add(Class.forName(className));
-      } else if (file.isDirectory()) {
-        String path = resourcePath + DIRECTORY_NAME_SEPARATOR + file.getName();
-        changeLogs.addAll(fetchChangeLogs(path));
-      }
-    }
-
-    return changeLogs;
-  }
-
-  private String formatAsPackage(String path) {
-    return path.replace(DIRECTORY_NAME_SEPARATOR, PACKAGE_NAME_SEPARATOR);
-  }
-
-  private String getNameWithoutExtension(File file) {
-    String name = file.getName();
-    return name.substring(0, name.length() - CLASS_FILE_EXTENSION.length());
   }
 
   private List<Method> filterChangeSetAnnotation(List<Method> allMethods) throws MongoBatChangeSetException {
