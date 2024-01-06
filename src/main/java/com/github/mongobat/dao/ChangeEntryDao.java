@@ -21,7 +21,7 @@ import com.mongodb.client.MongoDatabase;
  * @since 27/07/2014
  */
 public class ChangeEntryDao {
-  private static final Logger logger = LoggerFactory.getLogger("Mongobee dao");
+  private static final Logger log = LoggerFactory.getLogger(ChangeEntryDao.class);
 
   private MongoDatabase mongoDatabase;
   private MongoClient mongoClient;
@@ -31,6 +31,7 @@ public class ChangeEntryDao {
   private long changeLogLockWaitTime;
   private long changeLogLockPollRate;
   private boolean throwExceptionIfCannotObtainLock;
+  private String installationId;
 
   private LockDao lockDao;
 
@@ -80,7 +81,7 @@ public class ChangeEntryDao {
       while (!acquired && new Date().getTime() < timeToGiveUp) {
         acquired = lockDao.acquireLock(getMongoDatabase());
         if (!acquired) {
-          logger.info("Waiting for changelog lock....");
+          log.info("Waiting for changelog lock....");
           try {
             Thread.sleep(changeLogLockPollRate * 1000);
           } catch (InterruptedException e) {
@@ -91,7 +92,7 @@ public class ChangeEntryDao {
     }
 
     if (!acquired && throwExceptionIfCannotObtainLock) {
-      logger.info("Mongobee did not acquire process lock. Throwing exception.");
+      log.info("Mongobee did not acquire process lock. Throwing exception.");
       throw new MongoBatLockException("Could not acquire process lock");
     }
 
@@ -122,7 +123,10 @@ public class ChangeEntryDao {
 
     MongoCollection<Document> mongobeeLog = getMongoDatabase().getCollection(changelogCollectionName);
 
-    mongobeeLog.insertOne(changeEntry.buildFullDBObject());
+    Document documentChangeEntry = changeEntry.buildFullDBObject();
+    documentChangeEntry.append("installationId", installationId);
+
+    mongobeeLog.insertOne(documentChangeEntry);
   }
 
   private void verifyDbConnection() throws MongoBatConnectionException {
@@ -136,11 +140,11 @@ public class ChangeEntryDao {
     Document index = indexDao.findRequiredChangeAndAuthorIndex(mongoDatabase);
     if (index == null) {
       indexDao.createRequiredUniqueIndex(collection);
-      logger.debug("Index in collection " + changelogCollectionName + " was created");
+      log.debug("Index in collection {} was created", changelogCollectionName);
     } else if (!indexDao.isUnique(index)) {
       indexDao.dropIndex(collection, index);
       indexDao.createRequiredUniqueIndex(collection);
-      logger.debug("Index in collection " + changelogCollectionName + " was recreated");
+      log.debug("Index in collection {} was recreated", changelogCollectionName);
     }
 
   }
@@ -201,6 +205,14 @@ public class ChangeEntryDao {
 
   public void setThrowExceptionIfCannotObtainLock(boolean throwExceptionIfCannotObtainLock) {
     this.throwExceptionIfCannotObtainLock = throwExceptionIfCannotObtainLock;
+  }
+
+  public String getInstallationId() {
+    return installationId;
+  }
+
+  public void setInstallationId(String installationId) {
+    this.installationId = installationId;
   }
 
 }

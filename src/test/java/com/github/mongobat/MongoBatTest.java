@@ -10,6 +10,7 @@ import com.github.mongobat.dao.ChangeEntryIndexDao;
 import com.github.mongobat.exception.MongoBatChangeSetException;
 import com.github.mongobat.exception.MongoBatConfigurationException;
 import com.github.mongobat.exception.MongoBatException;
+import com.github.mongobat.exception.MongoBatLockException;
 import com.github.mongobat.test.changelogs.MongoBatTestResource;
 import com.github.mongobat.utils.ChangeSetExecutionChecker;
 import com.github.mongobat.utils.Environment;
@@ -20,6 +21,7 @@ import org.bson.Document;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.function.Executable;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -27,14 +29,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Date;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-public class MongoBatTest {
+class MongoBatTest {
 
   private static final String CHANGELOG_COLLECTION_NAME = "dbchangelog";
 
@@ -60,7 +61,7 @@ public class MongoBatTest {
   private MongoBat runner = new MongoBat(mongoClient);
 
   @BeforeEach
-  public void init() throws MongoBatException {
+  void init() throws MongoBatException {
     lenient().when(dao.connectMongoDb(any(MongoClient.class), anyString()))
         .thenReturn(fakeMongoDatabase);
     lenient().when(dao.getMongoDatabase()).thenReturn(fakeMongoDatabase);
@@ -76,41 +77,51 @@ public class MongoBatTest {
   }
 
   @Test
-  public void shouldThrowAnExceptionIfNoDbNameSet() {
+  void shouldThrowAnExceptionIfNoDbNameSet() {
     runner.setDbName(null);
     runner.setEnabled(true);
     runner.setChangeLogsScanPackage(MongoBatTestResource.class.getPackage().getName());
-    assertThrows(MongoBatConfigurationException.class, runner::execute);
+
+    Executable execute = () -> {
+      ExecutionReport report = runner.execute();
+      assertNull(report);
+    };
+    assertThrows(MongoBatConfigurationException.class, execute);
   }
 
   @Test
-  public void shouldExecuteAllChangeSets() throws Exception {
+  void shouldExecuteAllChangeSets() throws Exception {
     // given
     when(fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME)).thenReturn(mongoCollection);
     when(dao.acquireProcessLock()).thenReturn(true);
     when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(true);
 
     // when
-    runner.execute();
+    ExecutionReport report = runner.execute();
 
     // then
-    verify(dao, times(8)).save(any(ChangeEntry.class)); // 8 changesets saved to dbchangelog
+    verify(dao, times(8)).save(any(ChangeEntry.class));
+    assertEquals(8, report.getScanned());
+    assertEquals(8, report.getExecuted());
   }
 
   @Test
-  public void shouldPassOverChangeSets() throws Exception {
+  void shouldPassOverChangeSets() throws Exception {
     // given
+    when(dao.acquireProcessLock()).thenReturn(true);
     lenient().when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(false);
 
     // when
-    runner.execute();
+    ExecutionReport report = runner.execute();
 
     // then
-    verify(dao, times(0)).save(any(ChangeEntry.class)); // no changesets saved to dbchangelog
+    verify(dao, times(0)).save(any(ChangeEntry.class));
+    assertEquals(8, report.getScanned());
+    assertEquals(8, report.getSkipped());
   }
 
   @Test
-  public void shouldExecuteProcessWhenLockAcquired() throws Exception {
+  void shouldExecuteProcessWhenLockAcquired() throws Exception {
     // given
     when(dao.acquireProcessLock()).thenReturn(true);
 
@@ -122,7 +133,7 @@ public class MongoBatTest {
   }
 
   @Test
-  public void shouldReleaseLockAfterWhenLockAcquired() throws Exception {
+  void shouldReleaseLockAfterWhenLockAcquired() throws Exception {
     // given
     when(dao.acquireProcessLock()).thenReturn(true);
 
@@ -134,19 +145,20 @@ public class MongoBatTest {
   }
 
   @Test
-  public void shouldNotExecuteProcessWhenLockNotAcquired() throws Exception {
+  void shouldNotExecuteProcessWhenLockNotAcquired() throws Exception {
     // given
     when(dao.acquireProcessLock()).thenReturn(false);
 
     // when
-    runner.execute();
+    ExecutionReport report = runner.execute();
 
     // then
     verify(dao, never()).isNewChange(any(ChangeEntry.class));
+    assertNull(report);
   }
 
   @Test
-  public void shouldReturnExecutionStatusBasedOnDao() throws Exception {
+  void shouldReturnExecutionStatusBasedOnDao() throws Exception {
     // given
     when(dao.isProccessLockHeld()).thenReturn(true);
 
@@ -157,26 +169,23 @@ public class MongoBatTest {
   }
 
   @Test
-  public void shouldReleaseLockWhenExceptionInMigration() throws Exception {
+  void shouldReleaseLockWhenExceptionInMigration() throws Exception {
     // given
-    // would be nicer with a mock for the whole execution, but this would mean breaking out to separate class..
-    // this should be "good enough"
     when(dao.acquireProcessLock()).thenReturn(true);
     when(dao.isNewChange(any(ChangeEntry.class))).thenThrow(RuntimeException.class);
 
-    // when
-    // have to catch the exception to be able to verify after
-    try {
-      runner.execute();
-    } catch (Exception e) {
-      // do nothing
-    }
-    // then
+    // when & then
+    Executable execute = () -> {
+      ExecutionReport report = runner.execute();
+      assertEquals(8, report.getScanned());
+      assertEquals(8, report.getFailed());
+    };
+    assertThrows(RuntimeException.class, execute);
     verify(dao).releaseProcessLock();
   }
 
   @Test
-  public void shouldIgnoreChangeSetsWithUnsupportedParameterType() throws Exception {
+  void shouldIgnoreChangeSetsWithUnsupportedParameterType() throws Exception {
     runner.setChangeLogsScanPackage(CustomParamsChangeLog.class.getPackage().getName());
     runner.setChangeSetMethodParams(Map.of(ChangeSetExecutionChecker.class, executionChecker));
 
@@ -184,14 +193,17 @@ public class MongoBatTest {
     when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(true);
     when(fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME)).thenReturn(mongoCollection);
 
-    runner.execute();
+    ExecutionReport report = runner.execute();
 
     verify(executionChecker).execute(CustomParamsChangeLog.CHANGESET5);
-    verify(dao).save(any(ChangeEntry.class));
+    verify(dao, times(5)).save(any(ChangeEntry.class));
+    assertEquals(5, report.getScanned());
+    assertEquals(1, report.getExecuted());
+    assertEquals(4, report.getFailed());
   }
 
   @Test
-  public void shouldRunChangeSetsWhenCustomParametersWereDefined() throws Exception {
+  void shouldRunChangeSetsWhenCustomParametersWereDefined() throws Exception {
     runner.setChangeLogsScanPackage(CustomParamsChangeLog.class.getPackage().getName());
     runner.setChangeSetMethodParams(Map.of(Document.class, new Document(), MongoClient.class, mongoClient, ChangeSetExecutionChecker.class, executionChecker));
 
@@ -199,14 +211,16 @@ public class MongoBatTest {
     when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(true);
     when(fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME)).thenReturn(mongoCollection);
 
-    runner.execute();
+    ExecutionReport report = runner.execute();
 
     verify(executionChecker, times(5)).execute(anyString());
     verify(dao, times(5)).save(any(ChangeEntry.class));
+    assertEquals(5, report.getScanned());
+    assertEquals(5, report.getExecuted());
   }
 
   @Test
-  public void shouldRunChangeSetsForSelectedEnvironment() throws Exception {
+  void shouldRunChangeSetsForSelectedEnvironment() throws Exception {
     runner.setChangeLogsScanPackage(EnvironmentsChangeLog.class.getPackage().getName());
     runner.setEnvironment(Environment.PROD);
     runner.setChangeSetMethodParams(Map.of(ChangeSetExecutionChecker.class, executionChecker));
@@ -216,15 +230,17 @@ public class MongoBatTest {
     when(fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME)).thenReturn(mongoCollection);
     doCallRealMethod().when(executionChecker).execute(anyString());
 
-    runner.execute();
+    ExecutionReport report = runner.execute();
 
     verify(executionChecker).execute(Environment.PROD);
     verify(executionChecker).execute(Environment.ANY);
     verify(dao, times(2)).save(any(ChangeEntry.class));
+    assertEquals(5, report.getScanned());
+    assertEquals(2, report.getExecuted());
   }
 
   @Test
-  public void shouldRunAllChangeSetsWhenEnvironmentIsNotDefined() throws Exception {
+  void shouldRunAllChangeSetsWhenEnvironmentIsNotDefined() throws Exception {
     runner.setChangeLogsScanPackage(EnvironmentsChangeLog.class.getPackage().getName());
     runner.setChangeSetMethodParams(Map.of(ChangeSetExecutionChecker.class, executionChecker));
 
@@ -233,14 +249,16 @@ public class MongoBatTest {
     when(fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME)).thenReturn(mongoCollection);
     doCallRealMethod().when(executionChecker).execute(anyString());
 
-    runner.execute();
+    ExecutionReport report = runner.execute();
 
     verify(executionChecker, times(5)).execute(anyString());
     verify(dao, times(5)).save(any(ChangeEntry.class));
+    assertEquals(5, report.getScanned());
+    assertEquals(5, report.getExecuted());
   }
 
   @Test
-  public void shouldNotExecutePostponedChangeSets() throws Exception {
+  void shouldNotExecutePostponedChangeSets() throws Exception {
     runner.setChangeLogsScanPackage(PostponedChangeLog.class.getPackage().getName());
     runner.setChangeSetMethodParams(Map.of(ChangeSetExecutionChecker.class, executionChecker));
 
@@ -249,28 +267,33 @@ public class MongoBatTest {
     when(fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME)).thenReturn(mongoCollection);
     doCallRealMethod().when(executionChecker).execute(anyString());
 
-    runner.execute();
+    ExecutionReport report = runner.execute();
 
     verify(executionChecker).execute(PostponedChangeLog.NOT_POSTPONED);
     verify(dao, times(3)).save(any(ChangeEntry.class));
+    assertEquals(3, report.getScanned());
+    assertEquals(1, report.getExecuted());
+    assertEquals(2, report.getPostponed());
   }
 
   @Test
-  public void shouldIgnoreRunAlwaysFlagForPostponedChangeSets() throws Exception {
+  void shouldIgnoreRunAlwaysFlagForPostponedChangeSets() throws Exception {
     runner.setChangeLogsScanPackage(PostponedChangeLog.class.getPackage().getName());
     runner.setChangeSetMethodParams(Map.of(ChangeSetExecutionChecker.class, executionChecker));
 
     when(dao.acquireProcessLock()).thenReturn(true);
     when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(false);
 
-    runner.execute();
+    ExecutionReport report = runner.execute();
 
     verify(executionChecker, never()).execute(anyString());
     verify(dao, never()).save(any(ChangeEntry.class));
+    assertEquals(3, report.getScanned());
+    assertEquals(3, report.getSkipped());
   }
 
   @Test
-  public void shouldRunSingleChangeSetRegardlessOfRepeatableWhenIsNew() throws Exception {
+  void shouldRunSingleChangeSetRegardlessOfRepeatableWhenIsNew() throws Exception {
     runner.setChangeLogsScanPackage(RepeatableChangeLog.class.getPackage().getName());
     runner.setChangeSetMethodParams(Map.of(ChangeSetExecutionChecker.class, executionChecker));
 
@@ -280,25 +303,31 @@ public class MongoBatTest {
     doCallRealMethod().when(executionChecker).execute(anyString());
 
     ChangeEntry changeEntry = createChangeEntry("id1", "changeSet1", false);
-    runner.executeSingle(changeEntry);
+    ExecutionReport report = runner.executeSingle(changeEntry);
 
     verify(executionChecker).execute("111");
     verify(dao).save(any(ChangeEntry.class));
+    assertEquals(1, report.getScanned());
+    assertEquals(1, report.getExecuted());
   }
 
   @Test
-  public void shouldNotRerunSingleChangeSetWhenRepeatableIsFalse() throws Exception {
+  void shouldNotRerunSingleChangeSetWhenRepeatableIsFalse() throws Exception {
     runner.setChangeLogsScanPackage(RepeatableChangeLog.class.getPackage().getName());
 
     when(dao.acquireProcessLock()).thenReturn(true);
     when(dao.isNewChange(any(ChangeEntry.class))).thenReturn(false);
+    when(fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME)).thenReturn(mongoCollection);
 
     ChangeEntry changeEntry = createChangeEntry("id1", "changeSet1", false);
-    assertThrows(MongoBatChangeSetException.class, () -> runner.executeSingle(changeEntry));
+    ExecutionReport report = runner.executeSingle(changeEntry);
+
+    assertEquals(1, report.getScanned());
+    assertEquals(1, report.getFailed());
   }
 
   @Test
-  public void shouldRerunSingleChangeSetWhenRepeatableIsTrue() throws Exception {
+  void shouldRerunSingleChangeSetWhenRepeatableIsTrue() throws Exception {
     runner.setChangeLogsScanPackage(RepeatableChangeLog.class.getPackage().getName());
     runner.setChangeSetMethodParams(Map.of(ChangeSetExecutionChecker.class, executionChecker));
 
@@ -307,9 +336,11 @@ public class MongoBatTest {
     when(fakeMongoDatabase.getCollection(CHANGELOG_COLLECTION_NAME)).thenReturn(mongoCollection);
 
     ChangeEntry changeEntry = createChangeEntry("id2", "changeSet2", true);
-    runner.executeSingle(changeEntry);
+    ExecutionReport report = runner.executeSingle(changeEntry);
 
     verify(dao).save(any(ChangeEntry.class));
+    assertEquals(1, report.getScanned());
+    assertEquals(1, report.getReExecuted());
   }
 
   private ChangeEntry createChangeEntry(String changeId, String changeSetMethodName, boolean repeatable) {

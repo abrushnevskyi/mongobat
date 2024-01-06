@@ -1,9 +1,9 @@
 package com.github.mongobat.changeset;
 
-import java.util.Date;
-
 import com.github.mongobat.MongoBat;
 import org.bson.Document;
+
+import java.util.Date;
 
 /**
  * Entry in the changes collection log {@link MongoBat#DEFAULT_CHANGELOG_COLLECTION_NAME}
@@ -24,6 +24,9 @@ public class ChangeEntry {
   public static final String KEY_ENVIRONMENT = "environment";
   public static final String KEY_POSTPONED = "postponed";
   public static final String KEY_REPEATABLE = "repeatable";
+  public static final String KEY_STATUS = "status";
+  public static final String KEY_ERROR = "error";
+  public static final String KEY_ORIGINAL_CHANGE_ID = "originalChangeId";
 
   private final String changeId;
   private final String author;
@@ -35,6 +38,9 @@ public class ChangeEntry {
   private final String environment;
   private final boolean postponed;
   private final boolean repeatable;
+  private ChangeStatus status;
+  private String error;
+  private String originalChangeId;
 
   public ChangeEntry(
       String changeId,
@@ -58,6 +64,21 @@ public class ChangeEntry {
     this.environment = environment;
     this.postponed = postponed;
     this.repeatable = repeatable;
+    this.status = ChangeStatus.INSTALLED;
+  }
+
+  public ChangeEntry(String changeId, ChangeEntry source) {
+    this(changeId,
+        source.getAuthor(),
+        source.getTimestamp(),
+        source.getChangeLogClass(),
+        source.getChangeSetMethodName(),
+        source.getDescription(),
+        source.getGroup(),
+        source.getEnvironment(),
+        source.isPostponed(),
+        source.isRepeatable()
+    );
   }
 
   public Document buildFullDBObject() {
@@ -72,7 +93,16 @@ public class ChangeEntry {
         .append(KEY_GROUP, this.group)
         .append(KEY_ENVIRONMENT, this.environment)
         .append(KEY_POSTPONED, this.postponed)
-        .append(KEY_REPEATABLE, this.repeatable);
+        .append(KEY_REPEATABLE, this.repeatable)
+        .append(KEY_STATUS, this.status.getStatus());
+
+    if (this.error != null) {
+      entry.append(KEY_ERROR, this.error);
+    }
+
+    if (this.originalChangeId != null) {
+      entry.append(KEY_ORIGINAL_CHANGE_ID, this.originalChangeId);
+    }
 
     return entry;
   }
@@ -96,6 +126,9 @@ public class ChangeEntry {
         ", environment='" + environment + '\'' +
         ", postponed=" + postponed +
         ", repeatable=" + repeatable +
+        ", status=" + status +
+        ", error='" + error + '\'' +
+        ", originalChangeId='" + originalChangeId + '\'' +
         '}';
   }
 
@@ -137,5 +170,29 @@ public class ChangeEntry {
 
   public boolean isRepeatable() {
     return repeatable;
+  }
+
+  public ChangeStatus getStatus() {
+    return status;
+  }
+
+  public void setStatus(ChangeStatus status) {
+    this.status = status;
+  }
+
+  public String getError() {
+    return error;
+  }
+
+  public void setError(String error) {
+    this.error = error;
+  }
+
+  public String getOriginalChangeId() {
+    return originalChangeId;
+  }
+
+  public void setOriginalChangeId(String originalChangeId) {
+    this.originalChangeId = originalChangeId;
   }
 }

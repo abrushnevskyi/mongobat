@@ -2,6 +2,7 @@ package com.github.mongobat;
 
 import com.github.mongobat.changeset.ChangeEntry;
 import com.github.mongobat.changeset.ChangeSet;
+import com.github.mongobat.changeset.ChangeStatus;
 import com.github.mongobat.dao.ChangeEntryDao;
 import com.github.mongobat.exception.MongoBatChangeSetException;
 import com.github.mongobat.exception.MongoBatConfigurationException;
@@ -16,9 +17,7 @@ import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.github.mongobat.utils.StringUtils.hasText;
@@ -30,7 +29,7 @@ import static com.github.mongobat.utils.StringUtils.hasText;
  * @since 26/07/2014
  */
 public class MongoBat {
-  private static final Logger logger = LoggerFactory.getLogger(MongoBat.class);
+  private static final Logger log = LoggerFactory.getLogger(MongoBat.class);
 
   private static final String DEFAULT_CHANGELOG_COLLECTION_NAME = "dbchangelog";
   private static final String DEFAULT_LOCK_COLLECTION_NAME = "mongobatlock";
@@ -38,11 +37,12 @@ public class MongoBat {
   private static final long DEFAULT_CHANGE_LOG_LOCK_WAIT_TIME = 5L;
   private static final long DEFAULT_CHANGE_LOG_LOCK_POLL_RATE = 10L;
   private static final boolean DEFAULT_THROW_EXCEPTION_IF_CANNOT_OBTAIN_LOCK = false;
+  private static final String FAILED_CHANGE_ID_TEMPLATE = "%s (failed, %s)";
 
   private ChangeEntryDao dao;
 
   private boolean enabled = true;
-  private String changeLogsScanPackage;
+  private List<String> changeLogsScanPackages;
   private MongoClient mongoClient;
   private String dbName;
   private String environment = Environment.ANY;
@@ -58,15 +58,25 @@ public class MongoBat {
    * @see MongoClient
    */
   public MongoBat(MongoClient mongoClient) {
+    this(mongoClient, String.valueOf(new Date().getTime()));
+  }
+
+  public MongoBat(MongoClient mongoClient, String installationId) {
     this.mongoClient = mongoClient;
-    this.dao = new ChangeEntryDao(DEFAULT_CHANGELOG_COLLECTION_NAME, DEFAULT_LOCK_COLLECTION_NAME, DEFAULT_WAIT_FOR_LOCK,
+    this.dao = createChangeEntryDao();
+    this.dao.setInstallationId(installationId);
+  }
+
+  private ChangeEntryDao createChangeEntryDao() {
+    return new ChangeEntryDao(DEFAULT_CHANGELOG_COLLECTION_NAME, DEFAULT_LOCK_COLLECTION_NAME, DEFAULT_WAIT_FOR_LOCK,
         DEFAULT_CHANGE_LOG_LOCK_WAIT_TIME, DEFAULT_CHANGE_LOG_LOCK_POLL_RATE, DEFAULT_THROW_EXCEPTION_IF_CANNOT_OBTAIN_LOCK);
   }
 
-  public void executeSingle(ChangeEntry changeEntry) throws MongoBatException, ClassNotFoundException, NoSuchMethodException, InvocationTargetException, IllegalAccessException, InstantiationException {
+  public ExecutionReport executeSingle(ChangeEntry changeEntry) throws MongoBatException, ClassNotFoundException, NoSuchMethodException, InvocationTargetException, IllegalAccessException, InstantiationException {
+    ExecutionReport report = new ExecutionReport(dao.getInstallationId());
     if (!isEnabled()) {
-      logger.info("Mongobee is disabled. Exiting.");
-      return;
+      log.info("Mongobee is disabled. Exiting.");
+      return null;
     }
 
     validateConfig();
@@ -74,11 +84,11 @@ public class MongoBat {
     dao.connectMongoDb(this.mongoClient, dbName);
 
     if (!dao.acquireProcessLock()) {
-      logger.info("Mongobee did not acquire process lock. Exiting.");
-      return;
+      log.info("Mongobee did not acquire process lock. Exiting.");
+      return null;
     }
 
-    logger.info("Mongobee acquired process lock, starting the data migration sequence..");
+    log.info("Mongobee acquired process lock, starting the data migration sequence..");
 
     try {
       Class<?> changeLogClass = Class.forName(changeEntry.getChangeLogClass());
@@ -93,24 +103,33 @@ public class MongoBat {
       }
 
       Object changeLogInstance = changeLogClass.getConstructor().newInstance();
+      report.addScanned();
+
       if (dao.isNewChange(changeEntry)) {
         executeChangeSetMethod(method, changeLogInstance);
         dao.save(changeEntry);
-        logger.info(changeEntry + " applied");
+        report.addExecuted();
+        log.info("{} applied", changeEntry);
       } else if (changeSet.repeatable()) {
         executeChangeSetMethod(method, changeLogInstance);
         dao.save(changeEntry);
-        logger.info(changeEntry + " reapplied");
+        report.addReExecuted();
+        log.info("{} reapplied", changeEntry);
       } else {
         throw new MongoBatChangeSetException("Changeset " + changeEntry.getChangeId() + " cannot be executed");
       }
 
+    } catch (MongoBatException e) {
+      report.addFailed();
+      log.error(e.getMessage(), e);
+      dao.save(prepareFailedChangeEntry(changeEntry, e));
     } finally {
-      logger.info("Mongobee is releasing process lock.");
+      log.info("Mongobee is releasing process lock.");
       dao.releaseProcessLock();
     }
 
-    logger.info("Mongobee has finished his job.");
+    log.info("Mongobee has finished his job.");
+    return report;
   }
 
   /**
@@ -118,10 +137,10 @@ public class MongoBat {
    *
    * @throws MongoBatException exception
    */
-  public void execute() throws MongoBatException {
+  public ExecutionReport execute() throws MongoBatException {
     if (!isEnabled()) {
-      logger.info("Mongobee is disabled. Exiting.");
-      return;
+      log.info("Mongobee is disabled. Exiting.");
+      return null;
     }
 
     validateConfig();
@@ -129,24 +148,35 @@ public class MongoBat {
     dao.connectMongoDb(this.mongoClient, dbName);
 
     if (!dao.acquireProcessLock()) {
-      logger.info("Mongobee did not acquire process lock. Exiting.");
-      return;
+      log.info("Mongobee did not acquire process lock. Exiting.");
+      return null;
     }
 
-    logger.info("Mongobee acquired process lock, starting the data migration sequence..");
+    log.info("Mongobee acquired process lock, starting the data migration sequence..");
 
+    ExecutionReport report;
     try {
-      executeMigration();
+      report = executeMigration();
     } finally {
-      logger.info("Mongobee is releasing process lock.");
+      log.info("Mongobee is releasing process lock.");
       dao.releaseProcessLock();
     }
 
-    logger.info("Mongobee has finished his job.");
+    log.info("Mongobee has finished his job.");
+    return report;
   }
 
-  private void executeMigration() throws MongoBatException {
+  private ExecutionReport executeMigration() throws MongoBatException {
+    ExecutionReport report = new ExecutionReport(dao.getInstallationId());
+    for (String scanPackage : changeLogsScanPackages) {
+      ExecutionReport migrationReport = executeMigration(scanPackage);
+      report.merge(migrationReport);
+    }
+    return report;
+  }
 
+  private ExecutionReport executeMigration(String changeLogsScanPackage) throws MongoBatException {
+    ExecutionReport report = new ExecutionReport(dao.getInstallationId());
     ChangeService service = new ChangeService(changeLogsScanPackage);
 
     for (Class<?> changelogClass : service.fetchChangeLogs()) {
@@ -155,32 +185,40 @@ public class MongoBat {
       try {
         changelogInstance = changelogClass.getConstructor().newInstance();
         List<Method> changesetMethods = service.fetchChangeSets(changelogInstance.getClass());
+        report.addScanned(changesetMethods.size());
 
         for (Method changesetMethod : changesetMethods) {
           ChangeEntry changeEntry = service.createChangeEntry(changesetMethod);
 
           try {
             if (!changeEntry.getEnvironment().equals(this.environment) && !Environment.ANY.equals(this.environment) && !Environment.ANY.equals(changeEntry.getEnvironment())) {
-              logger.info(changeEntry + " skipped (wrong environment)");
+              log.info("{} skipped (wrong environment)", changeEntry);
+              report.addSkipped();
               continue;
             }
             if (dao.isNewChange(changeEntry)) {
               if (!service.isPostponed(changesetMethod)) {
                 executeChangeSetMethod(changesetMethod, changelogInstance);
-                logger.info(changeEntry + " applied");
+                report.addExecuted();
+                log.info("{} applied", changeEntry);
               } else {
-                logger.info(changeEntry + " postponed");
+                report.addPostponed();
+                log.info("{} postponed", changeEntry);
               }
               dao.save(changeEntry);
             } else if (service.isRunAlwaysChangeSet(changesetMethod) && service.isRepeatable(changesetMethod) && !service.isPostponed(changesetMethod)) {
               executeChangeSetMethod(changesetMethod, changelogInstance);
               dao.save(changeEntry);
-              logger.info(changeEntry + " reapplied");
+              report.addReExecuted();
+              log.info("{} reapplied", changeEntry);
             } else {
-              logger.info(changeEntry + " passed over");
+              report.addSkipped();
+              log.info("{} passed over", changeEntry);
             }
           } catch (MongoBatChangeSetException e) {
-            logger.error(e.getMessage());
+            report.addFailed();
+            log.error(e.getMessage(), e);
+            dao.save(prepareFailedChangeEntry(changeEntry, e));
           }
         }
       } catch (NoSuchMethodException | IllegalAccessException | InstantiationException e) {
@@ -191,13 +229,15 @@ public class MongoBat {
       }
 
     }
+
+    return report;
   }
 
   private Object executeChangeSetMethod(Method changeSetMethod, Object changeLogInstance)
       throws IllegalAccessException, InvocationTargetException, MongoBatChangeSetException {
 
     if (changeSetMethod.getParameterCount() == 0) {
-      logger.debug("method with no params");
+      log.debug("method with no params");
       return changeSetMethod.invoke(changeLogInstance);
     }
 
@@ -222,7 +262,7 @@ public class MongoBat {
     String paramsTypes = Arrays.stream(parameters)
         .map(o -> o.getClass().getSimpleName())
         .collect(Collectors.joining(", "));
-    logger.debug("method with arguments: {}", paramsTypes);
+    log.debug("method with arguments: {}", paramsTypes);
 
     return parameters;
   }
@@ -231,9 +271,25 @@ public class MongoBat {
     if (!hasText(dbName)) {
       throw new MongoBatConfigurationException("DB name is not set. It should be defined in MongoDB URI or via setter");
     }
-    if (!hasText(changeLogsScanPackage)) {
+    if (changeLogsScanPackages == null || changeLogsScanPackages.isEmpty()) {
       throw new MongoBatConfigurationException("Scan package for changelogs is not set: use appropriate setter");
     }
+    if (this.mongoClient == null) {
+      throw new MongoBatConfigurationException("MongoClient is not set");
+    }
+  }
+
+  private ChangeEntry prepareFailedChangeEntry(ChangeEntry entry, Exception exception) {
+    String error = Optional.ofNullable(exception.getCause())
+        .map(Object::toString)
+        .orElse(exception.getMessage());
+
+    String changeId = String.format(FAILED_CHANGE_ID_TEMPLATE, entry.getChangeId(), new Date().getTime());
+    ChangeEntry result = new ChangeEntry(changeId, entry);
+    result.setStatus(ChangeStatus.FAILED);
+    result.setError(error);
+    result.setOriginalChangeId(entry.getChangeId());
+    return result;
   }
 
   /**
@@ -284,7 +340,12 @@ public class MongoBat {
    * @return Mongobee object for fluent interface
    */
   public MongoBat setChangeLogsScanPackage(String changeLogsScanPackage) {
-    this.changeLogsScanPackage = changeLogsScanPackage;
+    this.changeLogsScanPackages = List.of(changeLogsScanPackage);
+    return this;
+  }
+
+  public MongoBat setChangeLogsScanPackages(List<String> changeLogsScanPackage) {
+    this.changeLogsScanPackages = changeLogsScanPackage;
     return this;
   }
 
